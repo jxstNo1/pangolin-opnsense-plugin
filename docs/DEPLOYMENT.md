@@ -130,6 +130,8 @@ from inside configd, which would deadlock.
 
 Conditional forwarding adds entries to the official Unbound domain-override
 model. Only UUIDs stored in `/var/db/pangolin/unbound-dots.json` are touched.
+The plugin does not widen Unbound's access control; only clients already
+allowed to query Unbound can resolve the published records.
 
 ## Uninstall
 

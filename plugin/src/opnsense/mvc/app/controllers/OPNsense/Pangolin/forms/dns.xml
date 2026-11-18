@@ -7,7 +7,7 @@
         <id>pangolin.dns.enabled</id>
         <label>Enable DNS synchronisation</label>
         <type>checkbox</type>
-        <help>Publishes private Pangolin resource aliases reported by the machine client into an os-pangolin-owned Unbound include file. Public domains are never rewritten and manually managed Unbound entries are never modified or deleted.</help>
+        <help>Publishes private Pangolin resource aliases reported by the machine client into an os-pangolin-owned Unbound include file. Public domains are never rewritten and manually managed Unbound entries are never modified or deleted. Unbound access control is left unchanged: only clients already allowed to query Unbound can use these records.</help>
     </field>
     <field>
         <id>pangolin.dns.syncInterval</id>
