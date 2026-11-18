@@ -1,0 +1,23 @@
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.php text eol=lf
+*.go text eol=lf
+*.xml text eol=lf
+*.volt text eol=lf
+*.conf text eol=lf
+*.patch text eol=lf
+*.md text eol=lf
+Makefile text eol=lf
+plugin/+POST_INSTALL text eol=lf
+plugin/+POST_DEINSTALL text eol=lf
+plugin/src/etc/rc.d/* text eol=lf
+plugin/src/etc/pangolin/hook.sh text eol=lf
+tests/integration/qemu/*.py text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pkg binary
+*.tgz binary
