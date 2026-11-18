@@ -1,0 +1,7 @@
+#!/bin/sh
+# Run before package files are removed so the plugin can remove its own
+# conditional-forwarding UUIDs from the Unbound model. The configd action is
+# still loaded at this point.
+
+/usr/local/sbin/configctl pangolin cleanup >/dev/null 2>&1 || true
+exit 0

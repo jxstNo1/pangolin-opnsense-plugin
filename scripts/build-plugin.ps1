@@ -17,6 +17,7 @@ New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item -Recurse (Join-Path $Root "plugin\src") (Join-Path $Stage "src")
 Copy-Item (Join-Path $Root "plugin\Makefile") $Stage
 Copy-Item (Join-Path $Root "plugin\pkg-descr") $Stage
+Copy-Item (Join-Path $Root "plugin\+PRE_DEINSTALL") $Stage
 Copy-Item (Join-Path $Root "plugin\+POST_INSTALL") $Stage
 Copy-Item (Join-Path $Root "plugin\+POST_DEINSTALL") $Stage
 Copy-Item (Join-Path $Root "LICENSE") $Stage

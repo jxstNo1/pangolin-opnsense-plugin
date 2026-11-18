@@ -30,7 +30,8 @@ All notable changes are documented here. The project follows a pragmatic
   - conflict detection against manual host/alias/domain-override entries;
   - wildcard alias support;
   - conditional forwarding through official domain overrides;
-  - stale alias removal on disconnect.
+  - stale alias removal on disconnect;
+  - uninstall cleanup for plugin-owned conditional-forwarding entries.
 - CARP active/passive gate with fail-closed behavior.
 - Status, DNS snapshots and logs in `/var/db/pangolin` and `/var/log/pangolin`.
 - Build, lint, packaging and QEMU integration scripts.

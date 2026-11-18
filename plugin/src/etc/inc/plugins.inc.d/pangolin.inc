@@ -99,7 +99,28 @@ function pangolin_configure()
         'pangolin_sync' => ['pangolin_configure_do'],
         'pangolin_dns_sync' => ['pangolin_dns_sync_do'],
         'pangolin_firewall_sync' => ['pangolin_firewall_sync_do'],
+        'pangolin_uninstall' => ['pangolin_uninstall_do'],
     ];
+}
+
+function pangolin_uninstall_do()
+{
+    try {
+        $mdl = new Pangolin();
+        pangolin_sync_unbound_dots($mdl, [], false);
+    } catch (\Throwable $e) {
+        syslog(LOG_WARNING, 'pangolin: uninstall DNS cleanup failed: ' . $e->getMessage());
+    }
+    @unlink('/usr/local/etc/unbound.opnsense.d/os-pangolin.conf');
+    pangolin_flush_firewall_anchors();
+    pangolin_restart_unbound();
+    foreach (['client', 'site'] as $mode) {
+        mwexecfb('/usr/local/etc/rc.d/pangolin_%s stop', [$mode]);
+    }
+    @unlink(Pangolin::AGENT_CONFIG_DIR . '/client.json');
+    @unlink(Pangolin::AGENT_CONFIG_DIR . '/site.json');
+    @unlink(Pangolin::STATE_DIR . '/unbound-dots.json');
+    syslog(LOG_NOTICE, 'pangolin: runtime state cleaned before package removal');
 }
 
 function pangolin_configure_do($verbose = false)
