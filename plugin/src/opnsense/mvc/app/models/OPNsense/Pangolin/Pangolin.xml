@@ -115,6 +115,11 @@
                 <MinimumValue>576</MinimumValue>
                 <MaximumValue>9000</MaximumValue>
             </mtu>
+            <dns type="TextField">
+                <Default>1.1.1.1</Default>
+                <Mask>/^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/</Mask>
+                <ValidationMessage>Enter an IPv4 resolver address.</ValidationMessage>
+            </dns>
             <useNativeMainInterface type="BooleanField">
                 <Default>0</Default>
                 <Required>Y</Required>

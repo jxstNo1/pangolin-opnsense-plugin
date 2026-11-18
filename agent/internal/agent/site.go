@@ -51,6 +51,7 @@ func RunSite(ctx context.Context, cfg *config.Config, store *state.Store, notify
 		UseNativeInterface:      s.UseNativeClientInterface,
 		UseNativeMainInterface:  s.UseNativeMainInterface,
 		NativeMainInterfaceName: s.InterfaceName,
+		DNS:                     firstNonEmpty(s.DNS, "1.1.1.1"),
 		DisableSSH:              s.DisableSSH,
 		DisableClients:          s.DisableClients,
 		PingInterval:            mustDuration(s.PingInterval, 15*time.Second),

@@ -244,6 +244,7 @@ class Pangolin extends BaseModel
                 'name' => trim((string)$this->site->name),
                 'mtu' => (int)(string)$this->site->mtu,
                 'interfaceName' => (string)$this->site->interfaceName,
+                'dns' => trim((string)$this->site->dns),
                 'useNativeMainInterface' => (string)$this->site->useNativeMainInterface === '1',
                 'useNativeClientInterface' => false,
                 'disableSsh' => (string)$this->site->disableSsh === '1',

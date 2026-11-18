@@ -70,6 +70,7 @@ type SiteConfig struct {
 
 	MTU                      int    `json:"mtu"`
 	InterfaceName            string `json:"interfaceName"`
+	DNS                      string `json:"dns,omitempty"`
 	UseNativeMainInterface   bool   `json:"useNativeMainInterface"`
 	UseNativeClientInterface bool   `json:"useNativeClientInterface"`
 	DisableSSH               bool   `json:"disableSsh"`
@@ -140,6 +141,7 @@ func Default() *Config {
 		Site: &SiteConfig{
 			MTU:            DefaultSiteMTU,
 			InterfaceName:  DefaultSiteIf,
+			DNS:            "1.1.1.1",
 			DisableSSH:     true,
 			DisableClients: true,
 			PingInterval:   "15s",
@@ -223,6 +225,9 @@ func (c *Config) ApplyDefaults() {
 		if c.Site.PingTimeout == "" {
 			c.Site.PingTimeout = d.Site.PingTimeout
 		}
+		if c.Site.DNS == "" {
+			c.Site.DNS = d.Site.DNS
+		}
 	}
 	if c.Client == nil {
 		c.Client = d.Client
@@ -302,6 +307,9 @@ func (c *Config) Validate() error {
 			validateSecret(c.Site.Secret, "site.secret", add)
 			validateInterface(c.Site.InterfaceName, "site.interfaceName", add)
 			validateMTU(c.Site.MTU, "site.mtu", add)
+			if c.Site.DNS != "" && net.ParseIP(c.Site.DNS) == nil {
+				add("site.dns must be an IP address, got %q", c.Site.DNS)
+			}
 			validateDuration(c.Site.PingInterval, "site.pingInterval", add)
 			validateDuration(c.Site.PingTimeout, "site.pingTimeout", add)
 		}

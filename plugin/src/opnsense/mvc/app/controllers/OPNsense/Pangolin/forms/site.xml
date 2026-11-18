@@ -49,6 +49,13 @@
         <type>text</type>
     </field>
     <field>
+        <id>pangolin.site.dns</id>
+        <label>Netstack resolver</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Resolver used by the site connector's internal netstack. Unbound remains the LAN resolver.</help>
+    </field>
+    <field>
         <id>pangolin.site.useNativeMainInterface</id>
         <label>Use native TUN interface</label>
         <type>checkbox</type>
