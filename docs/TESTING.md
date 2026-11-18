@@ -113,6 +113,8 @@ configctl webgui restart
 | Site runtime | starts on FreeBSD with netstack, writes status, retries endpoint |
 | pf anchors registered | `anchor "os-pangolin/fw" all`, `nat-anchor "os-pangolin/nat" all` |
 | Simulated connected state | generated and loaded the expected rules (below) |
+| Remote allow-list | `remoteNetworks=10.20.0.0/16` filtered out `192.168.50.0/24`; only `10.20.0.0/16` remained in NAT/filter |
+| Remote/local overlap | rejected: `remote network 10.10.128.0/17 overlaps local network 10.10.0.0/16` |
 | Disconnect cleanup | anchors empty, rule files removed |
 | Unbound include | generated, copied to `/var/unbound/etc`, resolves alias |
 | Alias update | new record appears in source + chroot, `drill` returns it |
