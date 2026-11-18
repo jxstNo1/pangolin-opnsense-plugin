@@ -43,10 +43,11 @@ This is the highest-priority external dependency for beta. See
 - [x] Select local networks and validate them in Go and PHP.
 - [x] Reject default routes, broad prefixes, non-unicast networks and overlaps.
 - [x] Learn remote routes from the live tunnel.
-- [x] Generate source-scoped pass rules.
+- [x] Generate source-scoped pass rules bound to the source interfaces.
 - [x] Generate source NAT to the tunnel address.
 - [x] Register OPNsense-owned anchors.
-- [x] Flush anchors and files on disconnect.
+- [x] Flush anchors and files on disconnect, empty route sets and errors.
+- [x] Reject remote routes overlapping any local interface network.
 - [x] Prove rule generation and loading with a simulated connected state.
 - [ ] Prove the LAN-to-remote data plane through a real tunnel.
 - [ ] Multi-VLAN production test.
@@ -60,6 +61,7 @@ This is the highest-priority external dependency for beta. See
 - [x] rc.d services with bounded restart.
 - [x] 0600 config generation.
 - [x] Service start/stop/restart/status verified on OPNsense 26.7.
+- [x] Restart running services only when the generated agent JSON changed.
 - [x] Page/API smoke tests and validation rejection tests.
 - [ ] Browser E2E test with a trusted certificate (blocked by the development
       VM's self-signed web GUI certificate policy; tested with curl instead).
@@ -75,12 +77,14 @@ This is the highest-priority external dependency for beta. See
 - [x] Optional conditional forwarding through official domain overrides.
 - [x] Uninstall cleanup for plugin-owned domain-override UUIDs.
 - [x] Verify resolution and NXDOMAIN cleanup on OPNsense 26.7.
+- [x] Protect manual parent zones and wildcard entries from learned subdomains.
 - [ ] Verify with a live Pangolin alias set and HTTPS resource.
 - [ ] Add automated conflict tests with real Unbound model fixtures.
 
 ## Phase 6 — Integration, security, stabilization (21–27 Dec)
 
 - [x] Go unit tests for config, state, pf rules, HA parser, DNS snapshot.
+- [x] Stale/dead agent heartbeat tests and fail-closed anchor/DNS removal.
 - [x] PHP lint and XML parse checks.
 - [x] QEMU integration fixture for pf and Unbound.
 - [ ] Full live-server integration matrix.

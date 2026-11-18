@@ -4,7 +4,9 @@ This document records what was actually executed for Phase 2. It separates
 executed tests from tests that still need a live Pangolin instance and lab
 network. Nothing in the "blocked" table was simulated or reported as passed.
 
-Source state: commit `e9d5701` (on top of `a5e6b84`).
+Source state: the initial report was produced at commit `e9d5701`. The
+post-review hardening described below is on top of that commit and was
+re-tested on the same VM.
 
 ## Environment
 
@@ -181,6 +183,29 @@ above; the error is not produced by the plugin include.
    both rc.d scripts, with `scripts/check-rc.py` as a regression check.
 5. **Uninstall left empty runtime directories.** `+POST_DEINSTALL` now removes
    `/var/db/pangolin`, `/var/etc/pangolin` and `/var/log/pangolin` when empty.
+
+## Post-review hardening
+
+After the first Phase 2 report, a review identified eight additional issues.
+They were fixed and re-tested on the same OPNsense 26.7 VM:
+
+| Fix | VM evidence |
+|-----|-------------|
+| Empty remote route set must not become `any` | `empty/blocked route set: anchors empty PASS` |
+| Ingress pass must bind to the local interface | `pass in quick on vtnet1 inet from 192.168.1.0/24 to 192.168.50.0/24`; `pfctl -nf` accepts the file |
+| Remote routes overlapping any local interface are rejected | status contained LAN `192.168.1.0/24` and WAN `10.0.2.0/24`; only `192.168.50.0/24` reached pf |
+| Dead/stale agent must not stay connected | `stale heartbeat rejected: anchors empty, include absent`; `dead agent PID rejected: anchors empty, include absent` |
+| Stale DNS aliases after restart | `stale include removed on agent startup: PASS` |
+| Manual Unbound parent zones protect subdomains | `manual parent zone blocked subdomain; allowed alias published: PASS` |
+| Rule-write failures flush anchors | `write error flushed anchors: PASS` |
+| `pangolin sync` restarts only on config change | `unchanged sync kept agent pid 52537`; `changed config restarted agent pid 52537 -> 65926` |
+
+The standalone pf backend is unit-tested for empty destinations, `/1`
+rejection, interface mapping and interface-bound filter rules; its data plane
+was not exercised on the OPNsense VM because OPNsense uses the PHP/pf anchor
+backend.
+
+
 
 ## Required inputs for the remaining E2E tests
 

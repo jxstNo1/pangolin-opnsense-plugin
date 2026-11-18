@@ -47,3 +47,15 @@ func TestMustDuration(t *testing.T) {
 		t.Fatalf("unexpected parsed duration: %v", got)
 	}
 }
+
+func TestSameRoutesIgnoresOrder(t *testing.T) {
+	if !sameRoutes([]string{"10.20.0.0/16", "192.168.50.0/24"}, []string{"192.168.50.0/24", "10.20.0.0/16"}) {
+		t.Fatal("route order must not count as a change")
+	}
+	if sameRoutes([]string{"10.20.0.0/16"}, []string{"10.20.0.0/16", "192.168.50.0/24"}) {
+		t.Fatal("added route not detected")
+	}
+	if sameRoutes([]string{"10.20.0.0/16", "192.168.50.0/24"}, []string{"10.20.0.0/16"}) {
+		t.Fatal("removed route not detected")
+	}
+}

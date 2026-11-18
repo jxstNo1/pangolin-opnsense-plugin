@@ -55,11 +55,13 @@ type Status struct {
 
 // Store serialises writes for one agent process.
 type Store struct {
-	dir     string
-	mode    string
-	dnsPath string
-	mu      sync.Mutex
-	status  Status
+	dir       string
+	mode      string
+	dnsPath   string
+	mu        sync.Mutex
+	status    Status
+	dirty     bool
+	lastWrite time.Time
 }
 
 func New(dir, mode string) (*Store, error) {
@@ -111,13 +113,14 @@ func (s *Store) Init(version string) {
 		UpdatedAt: now,
 		HAActive:  true,
 	}
+	s.dirty = true
 	_ = s.writeStatusLocked()
 }
 
 func (s *Store) Snapshot() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.status
+	return cloneStatus(s.status)
 }
 
 // Update applies fn to the current status and writes it if the revision
@@ -127,18 +130,39 @@ func (s *Store) Update(fn func(*Status)) (Status, bool, error) {
 	defer s.mu.Unlock()
 	before, err := json.Marshal(s.status)
 	if err != nil {
-		return s.status, false, err
+		return cloneStatus(s.status), false, err
 	}
 	fn(&s.status)
 	after, err := json.Marshal(s.status)
 	if err != nil {
-		return s.status, false, err
+		return cloneStatus(s.status), false, err
 	}
 	if string(before) == string(after) {
-		return s.status, false, nil
+		if !s.dirty {
+			return cloneStatus(s.status), false, nil
+		}
+		/* A previous write failed. Retry even when the in-memory status did
+		 * not change so the file eventually catches up. */
+		return cloneStatus(s.status), false, s.writeStatusLocked()
 	}
 	s.status.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	return s.status, true, s.writeStatusLocked()
+	s.dirty = true
+	return cloneStatus(s.status), true, s.writeStatusLocked()
+}
+
+// Touch refreshes UpdatedAt at most once per interval. The plugin uses this
+// timestamp to decide whether a status file still belongs to a live agent.
+// Passing zero forces a write. Dirty state is always retried.
+func (s *Store) Touch(interval time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	if !s.dirty && interval > 0 && !s.lastWrite.IsZero() && now.Sub(s.lastWrite) < interval {
+		return nil
+	}
+	s.status.UpdatedAt = now.UTC().Format(time.RFC3339)
+	s.dirty = true
+	return s.writeStatusLocked()
 }
 
 func (s *Store) SetConnected(connected bool, tunnelIP, iface string, routes []string) (Status, bool, error) {
@@ -151,7 +175,7 @@ func (s *Store) SetConnected(connected bool, tunnelIP, iface string, routes []st
 			st.Interface = iface
 		}
 		if routes != nil {
-			st.Routes = routes
+			st.Routes = append([]string(nil), routes...)
 		}
 		if !connected {
 			st.Registered = false
@@ -185,24 +209,33 @@ func (s *Store) SetHA(active bool, note string) (Status, bool, error) {
 }
 
 func (s *Store) SetSubnetRouter(sr *SubnetRouterStatus) (Status, bool, error) {
+	var copy *SubnetRouterStatus
+	if sr != nil {
+		c := *sr
+		c.LocalNetworks = append([]string(nil), sr.LocalNetworks...)
+		copy = &c
+	}
 	return s.Update(func(st *Status) {
-		st.SubnetRouter = sr
+		st.SubnetRouter = copy
 	})
 }
 
 // WriteDNSRecords atomically replaces the DNS snapshot. The snapshot is kept
 // separate from status so a large alias set does not make every status poll
-// expensive.
+// expensive. The file is written first: a failed status write must not leave a
+// new snapshot in memory that the plugin cannot see on disk.
 func (s *Store) WriteDNSRecords(records []DNSEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.status.DNSRecords == nil || !sameRecords(s.status.DNSRecords, records) {
-		s.status.DNSRecords = records
+	if records == nil {
+		records = []DNSEntry{}
 	}
-	if err := s.writeStatusLocked(); err != nil {
+	if err := writeAtomic(s.dnsPath, records, 0o644); err != nil {
 		return err
 	}
-	return writeAtomic(s.dnsPath, records, 0o644)
+	s.status.DNSRecords = append([]DNSEntry(nil), records...)
+	s.dirty = true
+	return s.writeStatusLocked()
 }
 
 func (s *Store) ReadDNSRecords() ([]DNSEntry, error) {
@@ -218,7 +251,13 @@ func (s *Store) ReadDNSRecords() ([]DNSEntry, error) {
 }
 
 func (s *Store) writeStatusLocked() error {
-	return writeAtomic(s.StatusPath(), s.status, 0o644)
+	if err := writeAtomic(s.StatusPath(), s.status, 0o644); err != nil {
+		s.dirty = true
+		return err
+	}
+	s.dirty = false
+	s.lastWrite = time.Now()
+	return nil
 }
 
 func writeAtomic(path string, value any, mode os.FileMode) error {
@@ -255,16 +294,22 @@ func writeAtomic(path string, value any, mode os.FileMode) error {
 	return os.Rename(tmpName, path)
 }
 
-func sameRecords(a, b []DNSEntry) bool {
-	if len(a) != len(b) {
-		return false
+func cloneStatus(st Status) Status {
+	out := st
+	if st.Routes != nil {
+		out.Routes = append([]string(nil), st.Routes...)
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+	if st.DNSRecords != nil {
+		out.DNSRecords = append([]DNSEntry(nil), st.DNSRecords...)
+	}
+	if st.SubnetRouter != nil {
+		sr := *st.SubnetRouter
+		if sr.LocalNetworks != nil {
+			sr.LocalNetworks = append([]string(nil), sr.LocalNetworks...)
 		}
+		out.SubnetRouter = &sr
 	}
-	return true
+	return out
 }
 
 // ReadStatus loads a status file written by a (possibly different) agent

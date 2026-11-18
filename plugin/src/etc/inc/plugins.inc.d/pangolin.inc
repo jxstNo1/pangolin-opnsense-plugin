@@ -144,8 +144,9 @@ function pangolin_configure_do($verbose = false)
         return;
     }
 
+    $changedModes = [];
     try {
-        $mdl->syncAgentConfigs();
+        $mdl->syncAgentConfigs($changedModes);
     } catch (\Throwable $e) {
         service_log("failed to write agent configuration: {$e->getMessage()}\n", $verbose);
         syslog(LOG_ERR, 'pangolin: failed to write agent configuration: ' . $e->getMessage());
@@ -171,14 +172,19 @@ function pangolin_configure_do($verbose = false)
         )
     );
     foreach (['client' => $mdl->clientEnabled(), 'site' => $mdl->siteEnabled()] as $mode => $enabled) {
+        $running = pangolin_service_running($mode);
         if ($enabled) {
-            if (!pangolin_service_running($mode)) {
+            if (!$running) {
                 service_log("starting pangolin_{$mode}...\n", $verbose);
                 mwexecfb('/usr/local/etc/rc.d/pangolin_%s start', [$mode]);
                 syslog(LOG_NOTICE, "pangolin: start {$mode} requested");
+            } elseif (in_array($mode, $changedModes, true)) {
+                service_log("restarting pangolin_{$mode} (configuration changed)...\n", $verbose);
+                mwexecfb('/usr/local/etc/rc.d/pangolin_%s restart', [$mode]);
+                syslog(LOG_NOTICE, "pangolin: restart {$mode} requested (configuration changed)");
             }
         } else {
-            if (pangolin_service_running($mode)) {
+            if ($running) {
                 service_log("stopping disabled pangolin_{$mode}...\n", $verbose);
                 mwexecfb('/usr/local/etc/rc.d/pangolin_%s stop', [$mode]);
                 syslog(LOG_NOTICE, "pangolin: stop {$mode} requested");
@@ -475,6 +481,56 @@ function pangolin_firewall_sync_do($verbose = false)
         pangolin_flush_firewall_anchors();
         return;
     }
+
+    /* Bind the inbound pass rule to the interfaces that actually carry the
+     * selected local networks. An anchor pass rule without "on" can bypass
+     * interface/VLAN policy if OPNsense places the anchor early. */
+    $interfaceNetworks = pangolin_interface_networks();
+    $ingress = [];
+    $unmapped = [];
+    foreach ($local as $cidr) {
+        $matches = [];
+        foreach ($interfaceNetworks as $device => $networks) {
+            foreach ($networks as $network) {
+                if (pangolin_cidr_overlaps_any($cidr, [$network])) {
+                    $matches[$device] = true;
+                }
+            }
+        }
+        if (empty($matches)) {
+            $unmapped[] = $cidr;
+        } else {
+            foreach (array_keys($matches) as $device) {
+                $ingress[$device] = true;
+            }
+        }
+    }
+    if (!empty($unmapped)) {
+        syslog(
+            LOG_ERR,
+            'pangolin: local network(s) not assigned to an OPNsense interface: ' . implode(', ', $unmapped)
+        );
+        pangolin_flush_firewall_anchors();
+        service_log("Subnet router inactive; selected local networks have no interface.\n", $verbose);
+        return;
+    }
+    $ingress = array_keys($ingress);
+    sort($ingress);
+    foreach ($ingress as $device) {
+        if (!preg_match('/^[A-Za-z0-9_.]{1,15}$/', $device)) {
+            syslog(LOG_ERR, "pangolin: invalid ingress interface name '{$device}'");
+            pangolin_flush_firewall_anchors();
+            service_log("Subnet router inactive; invalid ingress interface.\n", $verbose);
+            return;
+        }
+    }
+    $allLocal = [];
+    foreach ($interfaceNetworks as $networks) {
+        foreach ($networks as $network) {
+            $allLocal[] = $network;
+        }
+    }
+
     $remote = [];
     foreach ((array)($status['routes'] ?? []) as $cidr) {
         $cidr = trim((string)$cidr);
@@ -486,16 +542,17 @@ function pangolin_firewall_sync_do($verbose = false)
         if (in_array($cidr, ['0.0.0.0/0', '0.0.0.0/1', '128.0.0.0/1'], true)) {
             continue;
         }
-        if (pangolin_cidr_overlaps_any($cidr, $local)) {
+        /* Reject destinations that touch any local interface network, not
+         * only the selected source networks. Otherwise the server could
+         * advertise another VLAN as a remote route and turn the pass rule
+         * into an inter-VLAN bypass. */
+        if (pangolin_cidr_overlaps_any($cidr, $local) || pangolin_cidr_overlaps_any($cidr, $allLocal)) {
             syslog(LOG_WARNING, "pangolin: remote route {$cidr} overlaps a local network; skipped");
             continue;
         }
         $remote[] = $cidr;
     }
     $remote = array_values(array_unique($remote));
-    if (empty($remote)) {
-        syslog(LOG_NOTICE, 'pangolin: tunnel has no remote IPv4 routes; subnet router filter set is empty');
-    }
     $allowedRemote = [];
     foreach ($mdl->csvList((string)$mdl->subnetRouter->remoteNetworks) as $cidr) {
         if (pangolin_valid_ipv4_cidr($cidr, 8)) {
@@ -518,56 +575,196 @@ function pangolin_firewall_sync_do($verbose = false)
     syslog(
         LOG_DEBUG,
         sprintf(
-            'pangolin: firewall sync locals=[%s] remotes=[%s]',
+            'pangolin: firewall sync locals=[%s] ingress=[%s] remotes=[%s]',
             implode(',', $local),
+            implode(',', $ingress),
             implode(',', $remote)
         )
     );
 
+    /* No usable destination means no rules at all. Never emit "to any". */
+    if (empty($remote)) {
+        syslog(LOG_NOTICE, 'pangolin: tunnel has no usable remote IPv4 routes; anchors flushed');
+        pangolin_flush_firewall_anchors();
+        service_log("Subnet router inactive; no usable remote routes.\n", $verbose);
+        return;
+    }
+
+    $natEnabled = (string)$mdl->subnetRouter->nat === '1';
+    $fwEnabled = (string)$mdl->subnetRouter->firewall === '1';
+    if (!$natEnabled && !$fwEnabled) {
+        syslog(LOG_NOTICE, 'pangolin: NAT and firewall integration disabled; anchors flushed');
+        pangolin_flush_firewall_anchors();
+        service_log("Subnet router inactive; NAT and firewall integration disabled.\n", $verbose);
+        return;
+    }
+
+    $localList = implode(', ', $local);
+    $remoteList = implode(', ', $remote);
+    $ifaceList = count($ingress) === 1 ? $ingress[0] : '{ ' . implode(', ', $ingress) . ' }';
+
     $nat = "# managed by os-pangolin\n";
-    if ((string)$mdl->subnetRouter->nat === '1' && !empty($remote)) {
-        $nat .= 'nat on ' . $iface . ' inet from { ' . implode(', ', $local) . ' } to { '
-            . implode(', ', $remote) . ' } -> ' . $tunnelIP . "\n";
+    if ($natEnabled) {
+        $nat .= 'nat on ' . $iface . ' inet from { ' . $localList . ' } to { '
+            . $remoteList . ' } -> ' . $tunnelIP . "\n";
     }
     $fw = "# managed by os-pangolin\n";
-    if ((string)$mdl->subnetRouter->firewall === '1' && !empty($remote)) {
-        $fw .= 'pass in quick inet from { ' . implode(', ', $local) . ' } to { '
-            . implode(', ', $remote) . ' } keep state' . "\n";
-        $fw .= 'pass out quick on ' . $iface . ' inet from { ' . implode(', ', $local) . ' } to { '
-            . implode(', ', $remote) . ' } keep state' . "\n";
+    if ($fwEnabled) {
+        $fw .= 'pass in quick on ' . $ifaceList . ' inet from { ' . $localList . ' } to { '
+            . $remoteList . ' } keep state' . "\n";
+        $fw .= 'pass out quick on ' . $iface . ' inet from { ' . $localList . ' } to { '
+            . $remoteList . ' } keep state' . "\n";
     }
 
     $dir = '/var/etc/pangolin';
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0755, true);
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+        syslog(LOG_ERR, 'pangolin: cannot create ' . $dir . '; anchors flushed');
+        pangolin_flush_firewall_anchors();
+        service_log("Subnet router rule directory unavailable; anchors flushed.\n", $verbose);
+        return;
     }
     $natFile = $dir . '/pf_nat.conf';
     $fwFile = $dir . '/pf_fw.conf';
-    $changed = pangolin_write_if_changed($natFile, $nat, 0600);
-    $changed = pangolin_write_if_changed($fwFile, $fw, 0600) || $changed;
+    $natResult = pangolin_write_if_changed($natFile, $nat, 0600);
+    $fwResult = pangolin_write_if_changed($fwFile, $fw, 0600);
+    if ($natResult['error'] !== null || $fwResult['error'] !== null) {
+        if ($natResult['error'] !== null) {
+            syslog(LOG_ERR, 'pangolin: NAT rule file: ' . $natResult['error']);
+        }
+        if ($fwResult['error'] !== null) {
+            syslog(LOG_ERR, 'pangolin: filter rule file: ' . $fwResult['error']);
+        }
+        pangolin_flush_firewall_anchors();
+        service_log("Subnet router rule write failed; anchors flushed.\n", $verbose);
+        return;
+    }
+    $changed = $natResult['changed'] || $fwResult['changed'];
 
-    /* Load only into our own anchor. The global ruleset is never replaced. */
-    if ($changed || !pangolin_pf_anchor_loaded()) {
-        mwexecf('/sbin/pfctl -a %s -f %s', ['os-pangolin/nat', $natFile]);
-        mwexecf('/sbin/pfctl -a %s -f %s', ['os-pangolin/fw', $fwFile]);
+    /* Load only into our own anchors. The global ruleset is never replaced. */
+    $natLoaded = pangolin_pf_anchor_loaded('nat');
+    $fwLoaded = pangolin_pf_anchor_loaded('fw');
+    $needLoad = $changed
+        || ($natEnabled && !$natLoaded)
+        || ($fwEnabled && !$fwLoaded);
+    if ($needLoad) {
+        $rcNat = mwexecf('/sbin/pfctl -a %s -f %s', ['os-pangolin/nat', $natFile]);
+        $rcFw = mwexecf('/sbin/pfctl -a %s -f %s', ['os-pangolin/fw', $fwFile]);
+        if ($rcNat !== 0 || $rcFw !== 0) {
+            syslog(
+                LOG_ERR,
+                sprintf(
+                    'pangolin: pfctl failed to load anchors (nat=%d fw=%d); anchors flushed',
+                    $rcNat,
+                    $rcFw
+                )
+            );
+            pangolin_flush_firewall_anchors();
+            service_log("Subnet router rule load failed; anchors flushed.\n", $verbose);
+            return;
+        }
         syslog(LOG_NOTICE, "pangolin: subnet router rules applied for {$iface} ({$tunnelIP})");
+    } else {
+        /* A previously enabled mode may have left rules behind. */
+        if (!$natEnabled && $natLoaded) {
+            mwexecf('/sbin/pfctl -a %s -F nat', ['os-pangolin/nat']);
+        }
+        if (!$fwEnabled && $fwLoaded) {
+            mwexecf('/sbin/pfctl -a %s -F rules', ['os-pangolin/fw']);
+        }
     }
     service_log("Subnet router rules " . ($changed ? "updated" : "unchanged") . ".\n", $verbose);
 }
 
-function pangolin_flush_firewall_anchors()
+function pangolin_flush_firewall_anchors(): bool
 {
-    mwexecf('/sbin/pfctl -a %s -F rules', ['os-pangolin/fw']);
-    mwexecf('/sbin/pfctl -a %s -F nat', ['os-pangolin/nat']);
-    @unlink('/var/etc/pangolin/pf_nat.conf');
-    @unlink('/var/etc/pangolin/pf_fw.conf');
+    $ok = true;
+    if (mwexecf('/sbin/pfctl -a %s -F rules', ['os-pangolin/fw']) !== 0) {
+        $ok = false;
+    }
+    if (mwexecf('/sbin/pfctl -a %s -F nat', ['os-pangolin/nat']) !== 0) {
+        $ok = false;
+    }
+    if ($ok) {
+        @unlink('/var/etc/pangolin/pf_nat.conf');
+        @unlink('/var/etc/pangolin/pf_fw.conf');
+    } else {
+        syslog(LOG_ERR, 'pangolin: failed to flush one or both pf anchors');
+    }
+    return $ok;
 }
 
-function pangolin_pf_anchor_loaded()
+function pangolin_pf_anchor_loaded(string $kind = 'fw'): bool
 {
     $out = [];
-    exec('/sbin/pfctl -a os-pangolin/fw -sr 2>/dev/null', $out);
-    return count($out) > 0;
+    $rc = 0;
+    if ($kind === 'nat') {
+        @exec('/sbin/pfctl -a os-pangolin/nat -sn 2>/dev/null', $out, $rc);
+    } else {
+        @exec('/sbin/pfctl -a os-pangolin/fw -sr 2>/dev/null', $out, $rc);
+    }
+    return $rc === 0 && count($out) > 0;
+}
+
+/**
+ * Return IPv4 networks per pf device. The inbound pass rule must name the
+ * device that carries the selected source network; otherwise OPNsense cannot
+ * enforce the interface/VLAN policy for this anchor.
+ */
+function pangolin_interface_networks(): array
+{
+    global $config;
+    $out = [];
+    if (!is_array($config)) {
+        return $out;
+    }
+    foreach (($config['interfaces'] ?? []) as $key => $iface) {
+        if (!is_array($iface) || empty($iface['if'])) {
+            continue;
+        }
+        $device = trim((string)$iface['if']);
+        if ($device === '' || $device === 'lo0') {
+            continue;
+        }
+        $ip = trim((string)($iface['ipaddr'] ?? ''));
+        $bits = (int)($iface['subnet'] ?? 0);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            if (function_exists('get_interface_ip') && function_exists('get_interface_subnet')) {
+                $ip = trim((string)get_interface_ip($key));
+                $bits = (int)get_interface_subnet($key);
+            }
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $bits >= 1 && $bits <= 32) {
+            $out[$device][] = $ip . '/' . $bits;
+        }
+    }
+
+    foreach (($config['virtualip']['vip'] ?? []) as $vip) {
+        if (!is_array($vip)) {
+            continue;
+        }
+        $mode = (string)($vip['mode'] ?? '');
+        if (!in_array($mode, ['carp', 'ipalias'], true)) {
+            continue;
+        }
+        $key = (string)($vip['interface'] ?? '');
+        $device = trim((string)($config['interfaces'][$key]['if'] ?? ''));
+        $ip = trim((string)($vip['subnet'] ?? ''));
+        $bits = (int)($vip['subnet_bits'] ?? 0);
+        if ($device === '' || $device === 'lo0') {
+            continue;
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $bits >= 1 && $bits <= 32) {
+            $out[$device][] = $ip . '/' . $bits;
+        }
+    }
+
+    foreach ($out as &$networks) {
+        $networks = array_values(array_unique($networks));
+        sort($networks);
+    }
+    unset($networks);
+    ksort($out);
+    return $out;
 }
 
 function pangolin_firewall($fw)
@@ -612,19 +809,7 @@ function pangolin_xmlrpc_sync()
 
 function pangolin_service_running(string $mode): bool
 {
-    $pidfile = '/var/run/pangolin_' . $mode . '.pid';
-    if (!is_file($pidfile)) {
-        return false;
-    }
-    $pid = (int)trim((string)@file_get_contents($pidfile));
-    if ($pid <= 1) {
-        return false;
-    }
-    $command = trim((string)shell_safe('/bin/ps -p %s -o command=', [$pid]));
-    if (strpos($command, 'pangolin-agent') === false && strpos($command, 'daemon:') !== 0) {
-        return false;
-    }
-    return isvalidpid($pidfile);
+    return \OPNsense\Pangolin\Pangolin::serviceRunning($mode);
 }
 
 function pangolin_valid_domain(string $domain): bool
@@ -719,10 +904,13 @@ function pangolin_write_atomic(string $path, string $content, int $mode): bool
     return true;
 }
 
-function pangolin_write_if_changed(string $path, string $content, int $mode): bool
+function pangolin_write_if_changed(string $path, string $content, int $mode): array
 {
     if (is_file($path) && file_get_contents($path) === $content) {
-        return false;
+        return ['changed' => false, 'error' => null];
     }
-    return pangolin_write_atomic($path, $content, $mode);
+    if (!pangolin_write_atomic($path, $content, $mode)) {
+        return ['changed' => false, 'error' => 'failed to write ' . $path];
+    }
+    return ['changed' => true, 'error' => null];
 }

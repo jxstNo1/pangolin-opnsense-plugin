@@ -1,6 +1,7 @@
 package pf
 
 import (
+	"net"
 	"strings"
 	"testing"
 )
@@ -31,10 +32,11 @@ func TestFilterRulesDoNotOpenOtherVLANs(t *testing.T) {
 	rules := filterRules(Config{
 		TunnelInterface: "pangolin0",
 		LocalNetworks:   []string{"10.10.0.0/16"},
+		LocalInterfaces: []string{"em0"},
 		RemoteNetworks:  []string{"192.168.50.0/24"},
 	})
-	if !strings.Contains(rules, "pass in quick inet from {10.10.0.0/16}") {
-		t.Fatalf("missing source-scoped pass rule:\n%s", rules)
+	if !strings.Contains(rules, "pass in quick on em0 inet from {10.10.0.0/16}") {
+		t.Fatalf("missing source- and interface-scoped pass rule:\n%s", rules)
 	}
 	if strings.Contains(rules, "from any") {
 		t.Fatalf("filter rule must not allow any source:\n%s", rules)
@@ -44,14 +46,54 @@ func TestFilterRulesDoNotOpenOtherVLANs(t *testing.T) {
 	}
 }
 
+func TestInterfacesForNetworks(t *testing.T) {
+	_, lan, _ := net.ParseCIDR("192.168.1.15/24")
+	_, vlan, _ := net.ParseCIDR("10.10.5.10/16")
+	entries := []ifaceNetwork{
+		{name: "vtnet1", network: lan},
+		{name: "vlan10", network: vlan},
+	}
+	got := interfacesForNetworks([]string{"192.168.1.0/24"}, entries)
+	if len(got) != 1 || got[0] != "vtnet1" {
+		t.Fatalf("unexpected interface mapping: %v", got)
+	}
+	got = interfacesForNetworks([]string{"10.10.0.0/16", "192.168.1.0/24"}, entries)
+	if len(got) != 2 || got[0] != "vlan10" || got[1] != "vtnet1" {
+		t.Fatalf("unexpected multi-interface mapping: %v", got)
+	}
+}
+
 func TestValidateCIDRsRejectsDangerousValues(t *testing.T) {
-	for _, cidr := range []string{"0.0.0.0/0", "10.0.0.0/8\nnat on tun0", "::/0"} {
+	for _, cidr := range []string{
+		"0.0.0.0/0",
+		"0.0.0.0/1",
+		"128.0.0.0/1",
+		"10.0.0.0/7",
+		"10.0.0.0/8\nnat on tun0",
+		"::/0",
+	} {
 		if err := validateCIDRs([]string{cidr}); err == nil {
 			t.Fatalf("expected %q to be rejected", cidr)
 		}
 	}
 	if err := validateCIDRs([]string{"10.0.0.0/24"}); err != nil {
 		t.Fatalf("valid CIDR rejected: %v", err)
+	}
+}
+
+func TestEmptyRemoteRoutesNeverBecomeAny(t *testing.T) {
+	cfg := Config{
+		TunnelInterface: "pangolin0",
+		TunnelIP:        "100.64.0.2",
+		LocalNetworks:   []string{"10.10.0.0/16"},
+	}
+	for name, rules := range map[string]string{
+		"nat":    natRules(cfg),
+		"filter": filterRules(cfg),
+	} {
+		if strings.Contains(rules, "any") {
+			t.Fatalf("%s rule with empty destinations must not contain any:\n%s", name, rules)
+		}
 	}
 }
 

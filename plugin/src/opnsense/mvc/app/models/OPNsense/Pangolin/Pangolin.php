@@ -36,6 +36,8 @@ class Pangolin extends BaseModel
     public const AGENT_CONFIG_DIR = '/usr/local/etc/pangolin';
     public const STATE_DIR = '/var/db/pangolin';
     public const HOOK_SCRIPT = '/usr/local/etc/pangolin/hook.sh';
+    /** Maximum age of a status heartbeat before the agent is considered dead. */
+    public const STATUS_MAX_AGE = 45;
 
     public function isEnabled(): bool
     {
@@ -206,10 +208,13 @@ class Pangolin extends BaseModel
 
     /**
      * Write the two agent JSON documents. Called from configd as root.
-     * Returns the paths actually written.
+     * Returns the paths actually written. $changedModes receives the modes
+     * whose on-disk configuration differs, so a running agent can be
+     * restarted without bouncing it on every harmless sync.
      */
-    public function syncAgentConfigs(): array
+    public function syncAgentConfigs(?array &$changedModes = null): array
     {
+        $changedModes = [];
         if (!is_dir(self::AGENT_CONFIG_DIR)) {
             mkdir(self::AGENT_CONFIG_DIR, 0700, true);
         }
@@ -217,20 +222,30 @@ class Pangolin extends BaseModel
 
         $written = [];
         if ($this->clientEnabled()) {
-            $written[] = $this->writeJson(
+            $written[] = $this->writeJsonIfChanged(
                 self::AGENT_CONFIG_DIR . '/client.json',
-                $this->agentConfig('client')
+                $this->agentConfig('client'),
+                $changedModes,
+                'client'
             );
         } else {
-            @unlink(self::AGENT_CONFIG_DIR . '/client.json');
+            if (is_file(self::AGENT_CONFIG_DIR . '/client.json')) {
+                @unlink(self::AGENT_CONFIG_DIR . '/client.json');
+                $changedModes[] = 'client';
+            }
         }
         if ($this->siteEnabled()) {
-            $written[] = $this->writeJson(
+            $written[] = $this->writeJsonIfChanged(
                 self::AGENT_CONFIG_DIR . '/site.json',
-                $this->agentConfig('site')
+                $this->agentConfig('site'),
+                $changedModes,
+                'site'
             );
         } else {
-            @unlink(self::AGENT_CONFIG_DIR . '/site.json');
+            if (is_file(self::AGENT_CONFIG_DIR . '/site.json')) {
+                @unlink(self::AGENT_CONFIG_DIR . '/site.json');
+                $changedModes[] = 'site';
+            }
         }
         return $written;
     }
@@ -305,13 +320,18 @@ class Pangolin extends BaseModel
         return $common;
     }
 
-    private function writeJson(string $path, array $data): string
+    private function writeJsonIfChanged(string $path, array $data, array &$changedModes, string $mode): string
     {
         $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         if ($json === false) {
             throw new \RuntimeException('failed to encode Pangolin agent configuration: ' . json_last_error_msg());
         }
         $json .= "\n";
+        $existing = @file_get_contents($path);
+        if ($existing === $json) {
+            @chmod($path, 0600);
+            return $path;
+        }
         $tmp = $path . '.tmp.' . getmypid();
         $old = umask(0077);
         $ok = file_put_contents($tmp, $json, LOCK_EX);
@@ -326,6 +346,9 @@ class Pangolin extends BaseModel
             throw new \RuntimeException('failed to replace ' . $path);
         }
         @chmod($path, 0600);
+        if (!in_array($mode, $changedModes, true)) {
+            $changedModes[] = $mode;
+        }
         return $path;
     }
 
@@ -343,8 +366,9 @@ class Pangolin extends BaseModel
 
     /**
      * Read a status document written by the agent. The file is world-readable
-     * but contains no secrets. A stale connected=true is downgraded to false
-     * when the pidfile no longer points at a live process.
+     * but contains no secrets. A stale or dead child process must not keep
+     * firewall/NAT/DNS state alive just because the daemon(8) supervisor is
+     * still present.
      */
     public static function readAgentStatus(string $mode): array
     {
@@ -354,19 +378,64 @@ class Pangolin extends BaseModel
         if (!is_array($data)) {
             $data = [];
         }
-        $running = self::serviceRunning($mode);
-        $data['running'] = $running;
-        if ($running) {
-            $pid = (int)trim((string)@file_get_contents('/var/run/pangolin_' . $mode . '.pid'));
-            if ($pid > 0) {
-                $data['pid'] = $pid;
-            }
-        } else {
+        $data['connected'] = !empty($data['connected']);
+        $data['registered'] = !empty($data['registered']);
+
+        $agentPid = (int)($data['pid'] ?? 0);
+        $updatedAt = (string)($data['updatedAt'] ?? '');
+        $age = self::statusAge($updatedAt);
+        $agentAlive = $agentPid > 1 && self::pidIsAgent($agentPid);
+        $fresh = $age !== null && $age <= self::STATUS_MAX_AGE;
+        $supervisor = self::serviceRunning($mode);
+
+        $data['supervisorRunning'] = $supervisor;
+        $data['statusAge'] = $age;
+        $data['running'] = $agentAlive && $fresh;
+
+        if (!$data['running']) {
             $data['connected'] = false;
             $data['registered'] = false;
             $data['pid'] = 0;
+            if ($supervisor && !$agentAlive) {
+                $data['statusError'] = 'agent process is not running';
+            } elseif ($agentAlive && !$fresh) {
+                $data['statusError'] = 'agent status is stale';
+            } else {
+                $data['statusError'] = 'agent is not running';
+            }
         }
         return $data;
+    }
+
+    private static function statusAge(string $updatedAt): ?int
+    {
+        if ($updatedAt === '') {
+            return null;
+        }
+        $timestamp = strtotime($updatedAt);
+        if ($timestamp === false) {
+            return null;
+        }
+        return max(0, time() - $timestamp);
+    }
+
+    private static function pidIsAgent(int $pid): bool
+    {
+        if ($pid <= 1) {
+            return false;
+        }
+        $output = [];
+        $rc = 0;
+        @exec('/bin/ps -ww -p ' . $pid . ' -o command= 2>/dev/null', $output, $rc);
+        if ($rc !== 0) {
+            return false;
+        }
+        $command = trim(implode(' ', $output));
+        /* The daemon supervisor has "daemon:" in its command and must never
+         * satisfy the agent-liveness check. */
+        return $command !== '' &&
+            str_contains($command, 'pangolin-agent') &&
+            !str_starts_with($command, 'daemon:');
     }
 
     public static function serviceRunning(string $mode): bool
@@ -381,12 +450,14 @@ class Pangolin extends BaseModel
         }
         $output = [];
         $rc = 0;
-        @exec('/bin/ps -p ' . $pid . ' -o command= 2>/dev/null', $output, $rc);
+        @exec('/bin/ps -ww -p ' . $pid . ' -o command= 2>/dev/null', $output, $rc);
         if ($rc !== 0) {
             return false;
         }
         $command = implode(' ', $output);
-        return str_contains($command, 'pangolin-agent') || str_starts_with($command, 'daemon:');
+        /* The pidfile belongs to daemon(8); its command line contains the
+         * agent path. A recycled PID without that path is not our service. */
+        return str_contains($command, 'pangolin-agent') && isvalidpid($pidfile);
     }
 
     public static function dnsRecords(): array
@@ -399,7 +470,9 @@ class Pangolin extends BaseModel
 
     /**
      * Return a human-readable list of conflicts with manually managed Unbound
-     * entries. The plugin must never override or delete those entries.
+     * entries. The plugin must never override or delete those entries. A
+     * manual host/alias protects its exact name; a manual domain override or
+     * wildcard protects the whole zone, including subdomains.
      */
     public static function unboundConflicts(array $records): ?array
     {
@@ -410,18 +483,24 @@ class Pangolin extends BaseModel
             return null;
         }
 
-        $manual = [];
+        $manualExact = [];
+        $manualZones = [];
         try {
             foreach ($unbound->hosts->host->iterateItems() as $host) {
                 $fqdn = strtolower(trim((string)$host->hostname . '.' . (string)$host->domain, '.'));
                 if ($fqdn !== '') {
-                    $manual[] = $fqdn;
+                    $manualExact[] = $fqdn;
                 }
             }
             foreach ($unbound->aliases->alias->iterateItems() as $alias) {
                 $a = strtolower(trim((string)$alias->hostname . '.' . (string)$alias->domain, '.'));
-                if ($a !== '') {
-                    $manual[] = $a;
+                if ($a === '') {
+                    continue;
+                }
+                if (str_starts_with($a, '*.')) {
+                    $manualZones[] = substr($a, 2);
+                } else {
+                    $manualExact[] = $a;
                 }
             }
             foreach ($unbound->dots->dot->iterateItems() as $dot) {
@@ -430,7 +509,7 @@ class Pangolin extends BaseModel
                 }
                 $d = strtolower(trim((string)$dot->domain, '.'));
                 if ($d !== '') {
-                    $manual[] = $d;
+                    $manualZones[] = $d;
                 }
             }
         } catch (\Throwable $e) {
@@ -442,25 +521,56 @@ class Pangolin extends BaseModel
             if ($domain === '') {
                 continue;
             }
-            $zone = $domain;
-            $isWildcard = str_starts_with($domain, '*.');
-            if ($isWildcard) {
-                $zone = substr($domain, 2);
-            }
-            foreach ($manual as $entry) {
-                $entry = ltrim($entry, '*.');
-                if ($isWildcard) {
-                    if ($entry === $zone || str_ends_with($entry, '.' . $zone)) {
-                        $conflicts[] = sprintf('%s conflicts with manually managed Unbound entry %s', $record['domain'], $entry);
-                        break;
-                    }
-                } elseif ($entry === $domain) {
-                    $conflicts[] = sprintf('%s conflicts with manually managed Unbound entry %s', $record['domain'], $entry);
-                    break;
-                }
+            if (self::domainConflicts($domain, $manualExact, $manualZones)) {
+                $conflicts[] = sprintf(
+                    '%s conflicts with a manually managed Unbound host, alias or zone',
+                    $record['domain']
+                );
             }
         }
         return array_values(array_unique($conflicts));
+    }
+
+    /**
+     * Match a learned alias against manual exact names and manual zones.
+     * Exposed for the DNS conflict regression fixture.
+     */
+    public static function domainConflicts(string $domain, array $manualExact, array $manualZones): bool
+    {
+        $domain = strtolower(trim($domain, '.'));
+        if ($domain === '') {
+            return false;
+        }
+        $isWildcard = str_starts_with($domain, '*.');
+        $zone = $isWildcard ? substr($domain, 2) : $domain;
+
+        foreach ($manualExact as $entry) {
+            $entry = strtolower(trim((string)$entry, '.'));
+            if ($entry === '') {
+                continue;
+            }
+            if ($entry === $domain) {
+                return true;
+            }
+            if ($isWildcard && self::domainWithin($entry, $zone)) {
+                return true;
+            }
+        }
+        foreach ($manualZones as $entry) {
+            $entry = strtolower(trim((string)$entry, '.'));
+            if ($entry === '') {
+                continue;
+            }
+            if (self::domainWithin($zone, $entry) || self::domainWithin($entry, $zone)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function domainWithin(string $domain, string $zone): bool
+    {
+        return $domain === $zone || str_ends_with($domain, '.' . $zone);
     }
 
     public static function tailLog(string $service, int $lines = 200): array

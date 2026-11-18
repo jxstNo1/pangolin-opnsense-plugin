@@ -199,6 +199,33 @@ and both rc.d scripts used `${procname}` (the daemon) as daemon's child command,
 so the agent could not start (`daemon: run: No such file or directory`). Both
 are fixed; `scripts/check-rc.py` guards the command split.
 
+## 4.2 Review hardening (2026-11-18)
+
+A security review found eight issues (empty remote route list, missing ingress
+binding, stale agent status, stale DNS snapshots, manual parent zones, route
+change notifications, firewall error handling and missing agent restarts). All
+were fixed and re-tested on the same OPNsense 26.7 VM.
+
+| Check | Result |
+|-------|--------|
+| Empty/blocked remote route set | both anchors empty; no `to any` rule |
+| Ingress binding | `pass in quick on vtnet1 inet from 192.168.1.0/24 to 192.168.50.0/24`; `pfctl -nf` accepts it |
+| Remote route overlapping another local interface | LAN and WAN routes in the status are skipped |
+| Stale heartbeat with live PID | anchors empty, include absent |
+| Fresh heartbeat with dead PID | anchors empty, include absent |
+| Stale Unbound include on agent restart | removed by the startup DNS hook |
+| Manual Unbound parent zone `corp.example.com` | learned `db.corp.example.com` not published; unrelated alias still published |
+| Firewall rule write failure | previously loaded anchors flushed |
+| `pangolin sync` without changes | agent PID unchanged |
+| `pangolin sync` after DNS TTL change | agent restarted with a new PID |
+| Standalone pf empty routes | unit test: rules contain no `any` |
+| Standalone pf `/1` route | rejected by the CIDR validator |
+| Status pointer/slice sharing | unit tests prove snapshots and `SetSubnetRouter` copy |
+
+The new fixtures are listed in `tests/integration/qemu/README.md`. Note that
+`unbound-checkconf` still reports the VM's pre-existing `pythonmod`/`unbound-dnsbl`
+path error; Unbound itself runs and resolves the aliases above.
+
 ## 5. Not yet tested
 
 - Authenticated connection to a real Pangolin server (Cloud or self-hosted).

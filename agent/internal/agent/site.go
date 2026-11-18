@@ -79,9 +79,12 @@ func RunSite(ctx context.Context, cfg *config.Config, store *state.Store, notify
 		if !s.UseNativeMainInterface {
 			iface = "netstack"
 		}
+		before := store.Snapshot()
 		_, _, err := store.SetConnected(healthy, tunnelIP, iface, routes)
 		if err != nil {
 			log.Printf("site: write status: %v", err)
+		} else if healthy && (before.TunnelIP != tunnelIP || !sameRoutes(before.Routes, routes)) {
+			notify("routes")
 		}
 		if healthy != prevConnected {
 			prevConnected = healthy
@@ -90,6 +93,9 @@ func RunSite(ctx context.Context, cfg *config.Config, store *state.Store, notify
 			} else {
 				notify("down")
 			}
+		}
+		if err := store.Touch(10 * time.Second); err != nil {
+			log.Printf("site: touch status: %v", err)
 		}
 	})
 

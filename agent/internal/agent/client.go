@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -53,22 +54,21 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 	var connected atomic.Bool
 	var registered atomic.Bool
 
-	srStatus := &state.SubnetRouterStatus{
-		Enabled:       cfg.SubnetRouter != nil && cfg.SubnetRouter.Enabled,
-		Backend:       subnetBackend(cfg),
-		LocalNetworks: append([]string(nil), localNetworks(cfg)...),
-	}
+	srEnabled := cfg.SubnetRouter != nil && cfg.SubnetRouter.Enabled
+	srBackend := subnetBackend(cfg)
+	srLocal := append([]string(nil), localNetworks(cfg)...)
 
 	onStateChange := func() {
 		settings := network.GetSettings()
 		tunnelIP := firstAddress(settings.IPv4Addresses)
 		routes := includedRoutes(settings.IPv4IncludedRoutes)
 		iface := c.InterfaceName
-		prev, _, err := store.SetConnected(connected.Load(), tunnelIP, iface, routes)
+		before := store.Snapshot()
+		_, _, err := store.SetConnected(connected.Load(), tunnelIP, iface, routes)
 		if err != nil {
 			log.Printf("client: write status: %v", err)
-		}
-		if connected.Load() && prev.TunnelIP != tunnelIP && tunnelIP != "" {
+		} else if connected.Load() && tunnelIP != "" &&
+			(before.TunnelIP != tunnelIP || !sameRoutes(before.Routes, routes)) {
 			notify("routes")
 		}
 		if !connected.Load() {
@@ -136,19 +136,32 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 		EnableUAPI:   false,
 	}
 
-	log.Printf("client: connecting to %s (interface %s, MTU %d, subnet-router=%v/%s)",
-		c.Endpoint, c.InterfaceName, c.MTU, srStatus.Enabled, srStatus.Backend)
-
-	go o.StartTunnel(tunnelCfg)
-
+	// Clear the previous run's DNS snapshot before the tunnel starts. A
+	// restart with zero aliases must not leave stale records that the plugin
+	// could publish after reconnecting.
 	if cfg.DNS != nil && cfg.DNS.OutputFile != "" {
 		if err := os.MkdirAll(filepath.Dir(cfg.DNS.OutputFile), 0o755); err != nil {
 			return fmt.Errorf("create DNS snapshot directory: %w", err)
 		}
 		store.SetDNSRecordsPath(cfg.DNS.OutputFile)
 	}
+	lastDNS := []state.DNSEntry{}
+	lastDNSSet := false
+	if err := store.WriteDNSRecords([]state.DNSEntry{}); err != nil {
+		log.Printf("client: clear stale DNS snapshot: %v", err)
+	} else {
+		lastDNSSet = true
+		if cfg.DNS != nil && cfg.DNS.Enabled {
+			/* Remove a previous run's Unbound include before the first poll. */
+			notify("dns")
+		}
+	}
 
-	var lastDNS []state.DNSEntry
+	log.Printf("client: connecting to %s (interface %s, MTU %d, subnet-router=%v/%s)",
+		c.Endpoint, c.InterfaceName, c.MTU, srEnabled, srBackend)
+
+	go o.StartTunnel(tunnelCfg)
+
 	var lastApplied bool
 
 	stopPoller := startPoller(runCtx, 2*time.Second, func() {
@@ -156,31 +169,40 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 		tunnelIP := firstAddress(settings.IPv4Addresses)
 		routes := includedRoutes(settings.IPv4IncludedRoutes)
 		iface := c.InterfaceName
-		prev := store.Snapshot()
-		_, changed, err := store.SetConnected(connected.Load(), tunnelIP, iface, routes)
+		before := store.Snapshot()
+		routeEvent := false
+		_, _, err := store.SetConnected(connected.Load(), tunnelIP, iface, routes)
 		if err != nil {
 			log.Printf("client: write status: %v", err)
-		}
-		if changed && connected.Load() && tunnelIP != "" && prev.TunnelIP != tunnelIP {
-			notify("routes")
+		} else if connected.Load() && tunnelIP != "" &&
+			(before.TunnelIP != tunnelIP || !sameRoutes(before.Routes, routes)) {
+			routeEvent = true
 		}
 
 		records := snapshotDNS(o.DNSRecords())
-		if !sameDNSEntries(records, lastDNS) {
-			lastDNS = records
+		if !lastDNSSet || !sameDNSEntries(records, lastDNS) {
 			if err := store.WriteDNSRecords(records); err != nil {
+				// Keep lastDNS/lastDNSSet unchanged so the next poll retries.
 				log.Printf("client: write DNS snapshot: %v", err)
-			} else if cfg.DNS != nil && cfg.DNS.Enabled {
-				notify("dns")
+			} else {
+				lastDNS = records
+				lastDNSSet = true
+				if cfg.DNS != nil && cfg.DNS.Enabled {
+					notify("dns")
+				}
 			}
 		}
 		_, _, _ = store.SetDNSProxyIP(o.DNSProxyIP())
 
-		if cfg.SubnetRouter != nil && cfg.SubnetRouter.Enabled {
-			srStatus.TunnelIP = tunnelIP
-			applied := connected.Load() && tunnelIP != ""
-			srStatus.Applied = applied
-			if applied && cfg.SubnetRouter.Backend == config.SubnetRouterPF {
+		if srEnabled {
+			sr := state.SubnetRouterStatus{
+				Enabled:       true,
+				Backend:       srBackend,
+				TunnelIP:      tunnelIP,
+				LocalNetworks: srLocal,
+				Applied:       connected.Load() && tunnelIP != "",
+			}
+			if sr.Applied && cfg.SubnetRouter.Backend == config.SubnetRouterPF {
 				pfCfg := pf.Config{
 					TunnelInterface:       c.InterfaceName,
 					TunnelIP:              tunnelIP,
@@ -192,18 +214,26 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 					WorkDir:               filepath.Join(cfg.StateDir, "pf"),
 				}
 				if err := pf.Apply(runCtx, pfCfg); err != nil {
-					srStatus.Applied = false
-					srStatus.LastError = err.Error()
-					log.Printf("client: %v", err)
-				} else {
-					srStatus.LastError = ""
+					sr.Applied = false
+					if errors.Is(err, pf.ErrNoRemoteRoutes) || errors.Is(err, pf.ErrNoRules) {
+						sr.LastError = ""
+					} else {
+						sr.LastError = err.Error()
+						log.Printf("client: %v", err)
+					}
 				}
 			}
-			if applied != lastApplied {
-				lastApplied = applied
-				notify("routes")
+			if sr.Applied != lastApplied {
+				lastApplied = sr.Applied
+				routeEvent = true
 			}
-			_, _, _ = store.SetSubnetRouter(srStatus)
+			_, _, _ = store.SetSubnetRouter(&sr)
+		}
+		if err := store.Touch(10 * time.Second); err != nil {
+			log.Printf("client: touch status: %v", err)
+		}
+		if routeEvent {
+			notify("routes")
 		}
 	})
 
@@ -270,6 +300,24 @@ func sameDNSEntries(a, b []state.DNSEntry) bool {
 	}
 	for i := range a {
 		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// sameRoutes compares routes as a set. The WireGuard settings order is not
+// stable, so a reorder alone must not trigger a firewall sync.
+func sameRoutes(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	left := append([]string(nil), a...)
+	right := append([]string(nil), b...)
+	sort.Strings(left)
+	sort.Strings(right)
+	for i := range left {
+		if left[i] != right[i] {
 			return false
 		}
 	}

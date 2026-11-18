@@ -55,17 +55,25 @@ include live Pangolin secrets in a report; redact them.
   networks are rejected in three places: XML model mask, PHP validator and Go
   config validator. An optional remote allow-list further restricts which
   learned destination routes are installed; remote/local overlaps are rejected.
+- **Interface-scoped forwarding.** The OPNsense inbound pass rule is bound to
+  the interfaces that carry the selected local networks, and a learned remote
+  route that overlaps **any** local interface network (not only the selected
+  sources) is discarded. An empty or fully filtered route set flushes the
+  anchors instead of producing `to any` rules.
 - **No global pf rewrite.** The plugin registers `os-pangolin/nat` and
   `os-pangolin/fw` through OPNsense's firewall plugin API and loads only those
   anchors. It never runs `pfctl -f` on the global ruleset.
 - **No foreign Unbound changes.** Static aliases go into a dedicated
   `unbound.opnsense.d` include. Conditional forwarding uses only UUIDs recorded
-  in `/var/db/pangolin/unbound-dots.json`. Manual host/alias/domain-override
-  entries are detected and win. If the manual-entry model cannot be inspected,
-  DNS synchronisation refuses to publish aliases (fail closed).
-- **Fail closed.** If CARP state cannot be read, the tunnel waits/stops. If the
-  agent PID is not alive, the plugin flushes the anchors and removes stale DNS.
-  If the tunnel has no valid address/interface, no rules are generated.
+  in `/var/db/pangolin/unbound-dots.json`. Manual host/alias entries, domain
+  overrides and wildcard entries win; a manual parent zone protects all of its
+  subdomains. If the manual-entry model cannot be inspected, DNS synchronisation
+  refuses to publish aliases (fail closed).
+- **Fail closed.** If CARP state cannot be read, the tunnel waits/stops. The
+  plugin requires the status file's agent PID to be alive and the heartbeat to
+  be recent; a live `daemon(8)` supervisor with a dead or stale child is treated
+  as disconnected, and anchors/DNS aliases are removed. If the tunnel has no
+  valid address/interface, no rules are generated.
 - **Secrets at rest.** `config.xml` is root-readable. Agent JSON is mode 0600.
   Newt's credential cache is mode 0600 and lives under `/var/db/pangolin`, not
   in a user home. Status and DNS snapshot files contain no secrets.

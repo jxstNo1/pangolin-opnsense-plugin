@@ -13,12 +13,15 @@ package pf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -29,10 +32,19 @@ const (
 	parentAnchor = "os-pangolin"
 )
 
+var (
+	// ErrNoRemoteRoutes means the tunnel currently has no usable destination.
+	// The anchors have been flushed; this is not a failure to log as an error.
+	ErrNoRemoteRoutes = errors.New("pf: no usable remote routes")
+	// ErrNoRules means both NAT and firewall integration are disabled.
+	ErrNoRules = errors.New("pf: NAT and firewall integration disabled")
+)
+
 type Config struct {
 	TunnelInterface       string
 	TunnelIP              string
 	LocalNetworks         []string
+	LocalInterfaces       []string
 	RemoteNetworks        []string
 	AllowedRemoteNetworks []string
 	NAT                   bool
@@ -45,77 +57,122 @@ type Config struct {
 // anchors. It intentionally contains no default-route logic.
 func Apply(ctx context.Context, cfg Config) error {
 	if cfg.TunnelInterface == "" {
-		return fmt.Errorf("pf: tunnel interface is required")
+		return failClosed(ctx, fmt.Errorf("pf: tunnel interface is required"))
+	}
+	if err := validateInterfaceNames([]string{cfg.TunnelInterface}); err != nil {
+		return failClosed(ctx, err)
 	}
 	if cfg.TunnelIP == "" || net.ParseIP(cfg.TunnelIP).To4() == nil {
-		return fmt.Errorf("pf: valid IPv4 tunnel address is required")
+		return failClosed(ctx, fmt.Errorf("pf: valid IPv4 tunnel address is required"))
 	}
 	if len(cfg.LocalNetworks) == 0 {
-		return fmt.Errorf("pf: at least one local network is required")
+		return failClosed(ctx, fmt.Errorf("pf: at least one local network is required"))
 	}
 	if err := validateCIDRs(cfg.LocalNetworks); err != nil {
-		return fmt.Errorf("pf: local networks: %w", err)
+		return failClosed(ctx, fmt.Errorf("pf: local networks: %w", err))
+	}
+	if len(cfg.LocalInterfaces) == 0 {
+		interfaces, err := resolveLocalInterfaces(cfg.LocalNetworks)
+		if err != nil {
+			return failClosed(ctx, err)
+		}
+		cfg.LocalInterfaces = interfaces
+	}
+	if err := validateInterfaceNames(cfg.LocalInterfaces); err != nil {
+		return failClosed(ctx, err)
 	}
 	if err := validateCIDRs(cfg.RemoteNetworks); err != nil {
-		return fmt.Errorf("pf: remote networks: %w", err)
+		return failClosed(ctx, fmt.Errorf("pf: remote networks: %w", err))
 	}
 	if err := validateCIDRs(cfg.AllowedRemoteNetworks); err != nil {
-		return fmt.Errorf("pf: allowed remote networks: %w", err)
+		return failClosed(ctx, fmt.Errorf("pf: allowed remote networks: %w", err))
 	}
 	remote, err := filterRemoteNetworks(cfg.RemoteNetworks, cfg.AllowedRemoteNetworks)
 	if err != nil {
-		return err
+		return failClosed(ctx, err)
 	}
 	cfg.RemoteNetworks = remote
+
+	/* No learned destination means no NAT and no pass rule. Never turn an
+	 * empty route set into "any": that would open every destination. */
+	if len(cfg.RemoteNetworks) == 0 {
+		log.Printf("pf: no remote routes; clearing anchors")
+		if err := Clear(ctx); err != nil {
+			return err
+		}
+		return ErrNoRemoteRoutes
+	}
+	if !cfg.NAT && !cfg.Firewall {
+		log.Printf("pf: NAT and firewall disabled; clearing anchors")
+		if err := Clear(ctx); err != nil {
+			return err
+		}
+		return ErrNoRules
+	}
 
 	workDir := cfg.WorkDir
 	if workDir == "" {
 		workDir = "/var/db/pangolin/pf"
 	}
 	if err := os.MkdirAll(workDir, 0o700); err != nil {
-		return err
+		return failClosed(ctx, err)
 	}
 
 	if cfg.NAT {
 		if err := ensureAnchor(ctx, "nat"); err != nil {
-			return err
+			return failClosed(ctx, err)
 		}
 		rules := natRules(cfg)
 		path := filepath.Join(workDir, "nat.conf")
 		if err := os.WriteFile(path, []byte(rules), 0o600); err != nil {
-			return err
+			return failClosed(ctx, err)
 		}
 		if out, err := run(ctx, "-a", natAnchor, "-f", path); err != nil {
-			return fmt.Errorf("pf: load NAT anchor: %w: %s", err, out)
+			return failClosed(ctx, fmt.Errorf("pf: load NAT anchor: %w: %s", err, out))
 		}
+	} else if err := clearAnchor(ctx, "nat"); err != nil {
+		return failClosed(ctx, err)
 	}
 
 	if cfg.Firewall {
 		if err := ensureAnchor(ctx, "fw"); err != nil {
-			return err
+			return failClosed(ctx, err)
 		}
 		rules := filterRules(cfg)
 		path := filepath.Join(workDir, "fw.conf")
 		if err := os.WriteFile(path, []byte(rules), 0o600); err != nil {
-			return err
+			return failClosed(ctx, err)
 		}
 		if out, err := run(ctx, "-a", fwAnchor, "-f", path); err != nil {
-			return fmt.Errorf("pf: load filter anchor: %w: %s", err, out)
+			return failClosed(ctx, fmt.Errorf("pf: load filter anchor: %w: %s", err, out))
 		}
+	} else if err := clearAnchor(ctx, "fw"); err != nil {
+		return failClosed(ctx, err)
 	}
-	log.Printf("pf: applied subnet router on %s (NAT=%v firewall=%v)", cfg.TunnelInterface, cfg.NAT, cfg.Firewall)
+	log.Printf("pf: applied subnet router on %s (NAT=%v firewall=%v, %d remote route(s))",
+		cfg.TunnelInterface, cfg.NAT, cfg.Firewall, len(cfg.RemoteNetworks))
 	return nil
+}
+
+// failClosed attempts to remove stale anchors before returning a validation or
+// load error. It is better to lose the rules than to keep old ones after the
+// configuration became invalid.
+func failClosed(ctx context.Context, cause error) error {
+	if err := Clear(ctx); err != nil {
+		return fmt.Errorf("%w; additionally failed to clear anchors: %v", cause, err)
+	}
+	return cause
 }
 
 // Clear flushes only the os-pangolin anchors. It is idempotent and safe to
 // call when pf is not running (the error is returned for logging only).
 func Clear(ctx context.Context) error {
 	var errs []string
-	if out, err := run(ctx, "-a", fwAnchor, "-F", "rules"); err != nil {
-		errs = append(errs, fmt.Sprintf("filter: %v: %s", err, out))
+	if err := clearAnchor(ctx, "fw"); err != nil {
+		errs = append(errs, err.Error())
 	}
-	if out, err := run(ctx, "-a", natAnchor, "-F", "nat"); err != nil {
-		errs = append(errs, fmt.Sprintf("nat: %v: %s", err, out))
+	if err := clearAnchor(ctx, "nat"); err != nil {
+		errs = append(errs, err.Error())
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("pf: clear anchors: %s", strings.Join(errs, "; "))
@@ -123,32 +180,54 @@ func Clear(ctx context.Context) error {
 	return nil
 }
 
+func clearAnchor(ctx context.Context, kind string) error {
+	var args []string
+	switch kind {
+	case "nat":
+		args = []string{"-a", natAnchor, "-F", "nat"}
+	case "fw":
+		args = []string{"-a", fwAnchor, "-F", "rules"}
+	default:
+		return fmt.Errorf("pf: unknown anchor kind %q", kind)
+	}
+	if out, err := run(ctx, args...); err != nil {
+		return fmt.Errorf("pf: clear %s anchor: %w: %s", kind, err, out)
+	}
+	return nil
+}
+
 func natRules(cfg Config) string {
-	dst := "any"
-	if len(cfg.RemoteNetworks) > 0 {
-		dst = "{" + strings.Join(cfg.RemoteNetworks, ", ") + "}"
+	if len(cfg.RemoteNetworks) == 0 {
+		/* Apply clears the anchors instead of loading this file. Keep the
+		 * builder defensive: an empty destination must never become "any". */
+		return "# managed by os-pangolin; do not edit\n"
 	}
 	return fmt.Sprintf(
-		"# managed by os-pangolin; do not edit\nnat on %s inet from {%s} to %s -> %s\n",
+		"# managed by os-pangolin; do not edit\nnat on %s inet from {%s} to {%s} -> %s\n",
 		cfg.TunnelInterface,
 		strings.Join(cfg.LocalNetworks, ", "),
-		dst,
+		strings.Join(cfg.RemoteNetworks, ", "),
 		cfg.TunnelIP,
 	)
 }
 
 func filterRules(cfg Config) string {
-	dst := "any"
-	if len(cfg.RemoteNetworks) > 0 {
-		dst = "{" + strings.Join(cfg.RemoteNetworks, ", ") + "}"
-	}
-	src := "{" + strings.Join(cfg.LocalNetworks, ", ") + "}"
 	var b strings.Builder
 	b.WriteString("# managed by os-pangolin; do not edit\n")
+	if len(cfg.RemoteNetworks) == 0 || len(cfg.LocalInterfaces) == 0 {
+		return b.String()
+	}
+	dst := "{" + strings.Join(cfg.RemoteNetworks, ", ") + "}"
+	src := "{" + strings.Join(cfg.LocalNetworks, ", ") + "}"
+	ifaceList := cfg.LocalInterfaces[0]
+	if len(cfg.LocalInterfaces) > 1 {
+		ifaceList = "{ " + strings.Join(cfg.LocalInterfaces, ", ") + " }"
+	}
 	// Allow LAN clients to forward through the firewall. The source match is
-	// restricted to the operator-selected VLANs; no rule is generated for
-	// other local networks and no inter-VLAN pass rule is created.
-	fmt.Fprintf(&b, "pass in quick inet from %s to %s keep state\n", src, dst)
+	// restricted to the operator-selected VLANs and the ingress rule is bound
+	// to the interface that carries them; no rule is generated for other local
+	// networks and no inter-VLAN pass rule is created.
+	fmt.Fprintf(&b, "pass in quick on %s inet from %s to %s keep state\n", ifaceList, src, dst)
 	fmt.Fprintf(&b, "pass out quick on %s inet from %s to %s keep state\n", cfg.TunnelInterface, src, dst)
 	// DHCP/DNS traffic to the firewall itself is intentionally not part of
 	// this anchor; OPNsense's normal interface rules continue to govern it.
@@ -195,11 +274,100 @@ func validateCIDRs(cidrs []string) error {
 		if bits != 32 {
 			return fmt.Errorf("%q is not an IPv4 network", cidr)
 		}
-		if ones == 0 {
-			return fmt.Errorf("default route is not allowed")
+		if ones < 8 {
+			return fmt.Errorf("%q is too broad; prefix must be between /8 and /32 (default routes are not allowed)", cidr)
 		}
 		if strings.ContainsAny(cidr, "\r\n") {
 			return fmt.Errorf("CIDR contains newline")
+		}
+	}
+	return nil
+}
+
+type ifaceNetwork struct {
+	name    string
+	network *net.IPNet
+}
+
+// resolveLocalInterfaces maps the selected source networks to the interfaces
+// that actually carry them. The standalone backend must bind its inbound pass
+// rule to those interfaces; otherwise the anchor can bypass interface policy.
+func resolveLocalInterfaces(local []string) ([]string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("pf: enumerate interfaces: %w", err)
+	}
+	var entries []ifaceNetwork
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok || ipNet.IP.To4() == nil {
+				continue
+			}
+			entries = append(entries, ifaceNetwork{name: iface.Name, network: ipNet})
+		}
+	}
+	out := interfacesForNetworks(local, entries)
+	if len(out) == 0 {
+		return nil, fmt.Errorf("pf: no interface carries the local networks %v", local)
+	}
+	for _, cidr := range local {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		matched := false
+		for _, entry := range entries {
+			if cidrOverlaps(network, entry.network) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, fmt.Errorf("pf: local network %s is not assigned to an interface", cidr)
+		}
+	}
+	return out, nil
+}
+
+func interfacesForNetworks(local []string, entries []ifaceNetwork) []string {
+	set := make(map[string]bool)
+	for _, cidr := range local {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if cidrOverlaps(network, entry.network) {
+				set[entry.name] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for name := range set {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func cidrOverlaps(a, b *net.IPNet) bool {
+	return a.Contains(b.IP) || b.Contains(a.IP)
+}
+
+var interfaceRE = regexp.MustCompile(`^[A-Za-z0-9_.]{1,15}$`)
+
+func validateInterfaceNames(names []string) error {
+	for _, name := range names {
+		if !interfaceRE.MatchString(name) {
+			return fmt.Errorf("pf: invalid interface name %q", name)
 		}
 	}
 	return nil

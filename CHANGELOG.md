@@ -91,6 +91,27 @@ All notable changes are documented here. The project follows a pragmatic
 - Uninstall left empty `/var/db/pangolin`, `/var/etc/pangolin` and
   `/var/log/pangolin` directories behind. Empty directories are now removed;
   non-empty log directories are intentionally retained for diagnostics.
+- The standalone pf backend no longer turns an empty remote-route list into
+  `to any`. NAT/filter anchors are flushed when there is no usable destination,
+  and `/1` routes are rejected. Inbound rules are bound to the interfaces that
+  carry the selected local networks.
+- The OPNsense inbound pass rule is now bound to the source interfaces, and
+  remote routes that overlap **any** local interface network are rejected, not
+  just routes overlapping the selected source networks.
+- A live daemon supervisor no longer keeps a crashed/stale child "connected".
+  `readAgentStatus()` verifies the agent PID and a fresh heartbeat; DNS aliases
+  and firewall anchors are removed when the status is invalid.
+- The client clears the previous DNS snapshot at startup and retries failed
+  snapshot writes instead of treating them as unchanged.
+- Manual Unbound domain overrides and wildcard entries now protect subdomains
+  in the conflict check.
+- Route-list changes trigger an immediate firewall sync, not only tunnel-IP
+  changes. Subnet-router status snapshots are deep-copied.
+- Firewall sync now distinguishes write errors from "unchanged", checks pfctl
+  exit codes, and flushes anchors on failure.
+- `pangolin sync` restarts a running agent only when its generated JSON changed;
+  this closes the DNS-page gap where enabling DNS sync left the old agent
+  without the DNS hook.
 
 ### Security notes
 

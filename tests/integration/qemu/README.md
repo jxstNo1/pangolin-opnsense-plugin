@@ -97,16 +97,31 @@ discards model changes made by `serializeToConfig()`.
 
 ## Fixtures
 
-- `fake-state.sh` — kills the real client, starts a process whose command name
-  contains `pangolin-agent` to satisfy the PID check, writes a simulated
-  connected status and a DNS snapshot, then runs `firewall-sync` and `dns-sync`.
-  Expected: NAT/filter anchors are populated; `0.0.0.0/0` and
+- `fake-state.sh` — kills the real client, starts a live stand-in process whose
+  command and PID satisfy the fresh-status check, writes a current heartbeat
+  and a simulated connected status, then runs `firewall-sync` and `dns-sync`.
+  Expected: NAT/filter anchors are populated; only allowed non-local remote
+  routes remain; the inbound rule carries `on <interface>`; `0.0.0.0/0` and
   `128.0.0.0/1` are ignored; the Unbound include is created.
-- `dns-change.sh` — adds `new.internal.example` and re-syncs. Expected: source
-  and chroot include both contain the new record and `drill` returns it.
-- `cleanup.sh` — removes the dummy PID and writes a disconnected status. Expected:
-  anchors are empty, the rule files and Unbound include are gone, and `drill`
-  returns `NXDOMAIN`.
+- `dns-change.sh` — refreshes the simulated heartbeat, adds
+  `new.internal.example` and re-syncs. Expected: source and chroot include both
+  contain the new record and `drill` returns it.
+- `cleanup.sh` — removes the dummy PID and writes a disconnected status.
+  Expected: anchors are empty, rule files and the Unbound include are gone, and
+  `drill` returns `NXDOMAIN`.
+- `empty-routes.sh` — connected state with only default/local routes. Expected:
+  both anchors empty; no `to any` rule.
+- `stale-status.sh` — a live fake PID with an old heartbeat, then a fresh
+  heartbeat with a dead PID. Expected: anchors empty and include absent in both
+  cases.
+- `firewall-error.sh` — makes `/var/etc/pangolin` a file so rule writing fails.
+  Expected: the previously loaded anchors are flushed.
+- `manual-zone.php add|remove` plus `manual-zone-test.sh` — creates a manual
+  Unbound domain override `corp.example.com` and checks that a learned
+  `db.corp.example.com` alias is not published while an unrelated alias is.
+- `dns-conflict.php` — pure parent-zone/wildcard conflict cases.
+- `sync-restart.sh` plus `change-dns-ttl.php` — unchanged `pangolin sync` keeps
+  the agent PID; a DNS TTL change restarts it. This covers the DNS page path.
 
 Run them from the VM console:
 
@@ -119,6 +134,32 @@ sh /tmp/dnschange.sh
 
 fetch -q -o /tmp/cleanup.sh http://10.0.2.2:8000/tests/integration/qemu/cleanup.sh
 sh /tmp/cleanup.sh
+```
+
+Review regression fixtures:
+
+```sh
+fetch -q -o /tmp/empty-routes.sh http://10.0.2.2:8000/tests/integration/qemu/empty-routes.sh
+sh /tmp/empty-routes.sh
+
+fetch -q -o /tmp/stale.sh http://10.0.2.2:8000/tests/integration/qemu/stale-status.sh
+sh /tmp/stale.sh
+
+fetch -q -o /tmp/fwerror.sh http://10.0.2.2:8000/tests/integration/qemu/firewall-error.sh
+sh /tmp/fwerror.sh
+
+fetch -q -o /tmp/dns-conflict.php http://10.0.2.2:8000/tests/integration/qemu/dns-conflict.php
+/usr/local/bin/php /tmp/dns-conflict.php
+
+fetch -q -o /tmp/manual-zone.php http://10.0.2.2:8000/tests/integration/qemu/manual-zone.php
+fetch -q -o /tmp/manual-zone-test.sh http://10.0.2.2:8000/tests/integration/qemu/manual-zone-test.sh
+/usr/local/bin/php /tmp/manual-zone.php add
+sh /tmp/manual-zone-test.sh
+/usr/local/bin/php /tmp/manual-zone.php remove
+
+fetch -q -o /tmp/change-dns-ttl.php http://10.0.2.2:8000/tests/integration/qemu/change-dns-ttl.php
+fetch -q -o /tmp/syncrestart.sh http://10.0.2.2:8000/tests/integration/qemu/sync-restart.sh
+sh /tmp/syncrestart.sh
 ```
 
 ## Expected outputs

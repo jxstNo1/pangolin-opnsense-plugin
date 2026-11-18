@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestStatusRoundTrip(t *testing.T) {
@@ -104,5 +105,103 @@ func TestHealthyRequiresFreshFile(t *testing.T) {
 	}
 	if !s.Healthy(0) {
 		t.Fatal("fresh health file should be healthy")
+	}
+}
+
+func TestTouchKeepsStatusFresh(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "client")
+	s.Init("test")
+	first := s.lastWrite
+	if err := s.Touch(time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if !s.lastWrite.Equal(first) {
+		t.Fatal("Touch must not rewrite inside the interval")
+	}
+	if err := s.Touch(0); err != nil {
+		t.Fatal(err)
+	}
+	if !s.lastWrite.After(first) {
+		t.Fatal("Touch(0) must refresh the status file")
+	}
+}
+
+func TestSubnetRouterSnapshotIsCopy(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "client")
+	s.Init("test")
+	sr := &SubnetRouterStatus{
+		Enabled:       true,
+		Backend:       "pf",
+		LocalNetworks: []string{"10.10.0.0/16"},
+		Applied:       true,
+	}
+	if _, _, err := s.SetSubnetRouter(sr); err != nil {
+		t.Fatal(err)
+	}
+	sr.Applied = false
+	sr.LocalNetworks[0] = "0.0.0.0/0"
+	snapshot := s.Snapshot()
+	if snapshot.SubnetRouter == nil || !snapshot.SubnetRouter.Applied {
+		t.Fatalf("snapshot changed through caller pointer: %+v", snapshot.SubnetRouter)
+	}
+	if snapshot.SubnetRouter.LocalNetworks[0] != "10.10.0.0/16" {
+		t.Fatalf("snapshot shares LocalNetworks slice: %+v", snapshot.SubnetRouter.LocalNetworks)
+	}
+}
+
+func TestWriteDNSRecordsEmptyReplacesStale(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "client")
+	s.Init("test")
+	if err := s.WriteDNSRecords([]DNSEntry{{Domain: "stale.example.com", IP: "100.64.0.2", Type: "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.WriteDNSRecords(nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ReadDNSRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("stale records survived empty snapshot: %+v", got)
+	}
+	raw, err := os.ReadFile(s.DNSRecordsPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) == "null\n" {
+		t.Fatalf("empty snapshot must be a JSON array, got %q", raw)
+	}
+}
+
+func TestFailedStatusWriteIsRetried(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "client")
+	s.Init("test")
+	statusPath := s.StatusPath()
+	if err := os.Remove(statusPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(statusPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.SetConnected(true, "100.64.0.2", "pangolin0", []string{"10.20.0.0/16"}); err == nil {
+		t.Fatal("expected status write to fail while path is a directory")
+	}
+	if err := os.Remove(statusPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Touch(0); err != nil {
+		t.Fatalf("dirty status was not retried: %v", err)
+	}
+	st, err := ReadStatus(statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Connected || st.TunnelIP != "100.64.0.2" {
+		t.Fatalf("retried status is incomplete: %+v", st)
 	}
 }

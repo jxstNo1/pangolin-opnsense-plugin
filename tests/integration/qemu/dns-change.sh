@@ -1,5 +1,17 @@
 #!/bin/sh
 set -e
+# Keep the simulated agent heartbeat fresh for the status-liveness check.
+if [ -r /var/db/pangolin/client-status.json ] && command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import datetime, json
+path = "/var/db/pangolin/client-status.json"
+with open(path) as fh:
+    data = json.load(fh)
+data["updatedAt"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+with open(path, "w") as fh:
+    json.dump(data, fh)
+PY
+fi
 cat > /var/db/pangolin/dns-records.json <<'EOF'
 [
   {"domain": "db.internal.example", "ip": "100.64.0.2", "type": "A", "siteId": 1},
