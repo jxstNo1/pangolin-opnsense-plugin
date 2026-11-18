@@ -125,10 +125,14 @@ class Pangolin extends BaseModel
             $errors[] = 'Client and site interfaces must have different names.';
         }
 
+        if ((string)$this->subnetRouter->enabled === '1' && !$this->clientEnabled()) {
+            $errors[] = 'Subnet routing requires the machine client to be enabled.';
+        }
+        if ((string)$this->dns->enabled === '1' && !$this->clientEnabled()) {
+            $errors[] = 'DNS synchronisation requires the machine client to be enabled.';
+        }
+
         if ($this->subnetRouterEnabled()) {
-            if (!$this->clientEnabled()) {
-                $errors[] = 'Subnet routing requires the machine client to be enabled.';
-            }
             $networks = $this->csvList((string)$this->subnetRouter->localNetworks);
             if (empty($networks)) {
                 $errors[] = 'Subnet routing requires at least one local network.';
@@ -186,9 +190,6 @@ class Pangolin extends BaseModel
         }
 
         if ($this->dnsEnabled()) {
-            if (!$this->clientEnabled()) {
-                $errors[] = 'DNS synchronisation requires the machine client to be enabled.';
-            }
             if ((string)$this->dns->conditionalForwarding === '1' && empty($this->csvList((string)$this->dns->forwardDomains))) {
                 $errors[] = 'Conditional forwarding requires at least one private DNS suffix.';
             }
