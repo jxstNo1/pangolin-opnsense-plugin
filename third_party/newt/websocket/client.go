@@ -433,7 +433,6 @@ func (c *Client) getToken() (string, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	logger.Debug("Token response body: %s", string(body))
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Debug("Failed to get token with status code: %d", resp.StatusCode)
@@ -469,7 +468,8 @@ func (c *Client) getToken() (string, error) {
 
 	c.serverVersion = tokenResp.Data.ServerVersion
 
-	logger.Debug("Received token: %s", tokenResp.Data.Token)
+	// Never log the bearer token returned by the server.
+	logger.Debug("Received authentication token (redacted)")
 	telemetry.IncConnAttempt(ctx, "auth", "success")
 
 	return tokenResp.Data.Token, nil

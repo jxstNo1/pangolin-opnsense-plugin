@@ -70,7 +70,9 @@ include live Pangolin secrets in a report; redact them.
   Newt's credential cache is mode 0600 and lives under `/var/db/pangolin`, not
   in a user home. Status and DNS snapshot files contain no secrets.
 - **No secrets in argv or logs.** The agent is started with `--config path`
-  only. It does not log secrets. The UI uses password fields.
+  only. It does not log secrets. The vendored runtimes are patched to redact
+  the token request body, bearer tokens, WireGuard private keys and the full
+  OLM startup config from debug logs. The UI uses password fields.
 - **Least privilege for the web tier.** The web/API layer calls configd; it does
   not receive a root shell or write pf/Unbound files itself.
 - **Bounded blast radius.** pf anchors are named, can be inspected with

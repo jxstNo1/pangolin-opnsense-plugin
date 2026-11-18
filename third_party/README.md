@@ -43,7 +43,10 @@ changes. They are suitable for upstream pull requests:
 | `olm/dns/platform/systemd_freebsd.go` | FreeBSD stubs for the Linux-only resolver helpers |
 | `olm/device/tun_freebsd.go` | Adopt an existing tun(4) fd with wireguard-go |
 | `olm/dns/dns_records.go`, `dns_proxy.go` | Stable alias snapshot |
-| `olm/olm/olm.go` | `DNSRecords()` and `DNSProxyIP()` for embedders |
+| `olm/olm/olm.go` | `DNSRecords()`/`DNSProxyIP()` and redacted startup logging |
+| `olm/peers/peer.go` | Redact WireGuard private key from peer logging |
+| `olm/websocket/client.go` | Redact client secret and bearer token from logs |
+| `newt/websocket/client.go` | Redact token response and bearer token from logs |
 | `olm/go.mod` | Pin the vendored newt |
 
 `patches/` contains the same changes as unified diffs against the upstream

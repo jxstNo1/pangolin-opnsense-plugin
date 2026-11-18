@@ -501,8 +501,18 @@ func (o *Olm) StartTunnel(config TunnelConfig) {
 		return
 	}
 
-	// debug print out the whole config
-	logger.Debug("Starting tunnel with config: %+v", config)
+	// Never dump the full config here: it contains the client secret and
+	// possibly a user token. Log only non-sensitive connection metadata.
+	logger.Debug(
+		"Starting tunnel: endpoint=%s id=%s org=%s interface=%s mtu=%d holepunch=%v subnetRouter=%v",
+		config.Endpoint,
+		config.ID,
+		config.OrgID,
+		config.InterfaceName,
+		config.MTU,
+		config.Holepunch,
+		config.SubnetRouter,
+	)
 
 	o.tunnelRunning = true // Also set it here in case it is called externally
 	o.tunnelConfig = config

@@ -219,10 +219,31 @@ index 58634b4..37fdd2b 100644
 +// os-pangolin pins the patched FreeBSD-capable newt tree in this repository.
 +replace github.com/fosrl/newt => ../newt
 diff --git a/olm/olm/olm.go b/olm/olm/olm.go
-index 38245a4..989b3f5 100644
+index 38245a4..3f489f0 100644
 --- a/olm/olm/olm.go
 +++ b/olm/olm/olm.go
-@@ -1136,6 +1136,28 @@ func (o *Olm) StopApi() error {
+@@ -501,8 +501,18 @@ func (o *Olm) StartTunnel(config TunnelConfig) {
+ 		return
+ 	}
+ 
+-	// debug print out the whole config
+-	logger.Debug("Starting tunnel with config: %+v", config)
++	// Never dump the full config here: it contains the client secret and
++	// possibly a user token. Log only non-sensitive connection metadata.
++	logger.Debug(
++		"Starting tunnel: endpoint=%s id=%s org=%s interface=%s mtu=%d holepunch=%v subnetRouter=%v",
++		config.Endpoint,
++		config.ID,
++		config.OrgID,
++		config.InterfaceName,
++		config.MTU,
++		config.Holepunch,
++		config.SubnetRouter,
++	)
+ 
+ 	o.tunnelRunning = true // Also set it here in case it is called externally
+ 	o.tunnelConfig = config
+@@ -1136,6 +1146,28 @@ func (o *Olm) StopApi() error {
  	return nil
  }
  
@@ -251,3 +272,42 @@ index 38245a4..989b3f5 100644
  func (o *Olm) StartApi() error {
  	if o.apiServer != nil {
  		err := o.apiServer.Start()
+diff --git a/olm/peers/peer.go b/olm/peers/peer.go
+index e5d9c7c..92d4095 100644
+--- a/olm/peers/peer.go
++++ b/olm/peers/peer.go
+@@ -73,7 +73,8 @@ func ConfigurePeer(dev *device.Device, siteConfig SiteConfig, privateKey wgtypes
+ 	configBuilder.WriteString(fmt.Sprintf("persistent_keepalive_interval=%d\n", persistentKeepalive))
+ 
+ 	config := configBuilder.String()
+-	logger.Debug("Configuring peer with config: %s", config)
++	// Never log config: it contains the WireGuard private key.
++	logger.Debug("Configuring peer public_key=%s endpoint=%s allowed_ips=%v", siteConfig.PublicKey, siteHost, allowedIPs)
+ 
+ 	if err := dev.IpcSet(config); err != nil {
+ 		return fmt.Errorf("failed to configure WireGuard peer: %v", err)
+diff --git a/olm/websocket/client.go b/olm/websocket/client.go
+index 71a9e73..3fdd228 100644
+--- a/olm/websocket/client.go
++++ b/olm/websocket/client.go
+@@ -541,8 +541,8 @@ func (c *Client) getToken() (string, []ExitNode, string, error) {
+ 	req.Header.Set("Content-Type", "application/json")
+ 	req.Header.Set("X-CSRF-Token", "x-csrf-protection")
+ 
+-	// print out the request for debugging
+-	logger.Debug("websocket: Requesting token from %s with body: %s", req.URL.String(), string(jsonData))
++	// Do not log the request body: it contains the client secret.
++	logger.Debug("websocket: Requesting token from %s", req.URL.String())
+ 
+ 	// Make the request
+ 	transport := http.DefaultTransport.(*http.Transport).Clone()
+@@ -587,7 +587,8 @@ func (c *Client) getToken() (string, []ExitNode, string, error) {
+ 		return "", nil, "", fmt.Errorf("received empty token from server")
+ 	}
+ 
+-	logger.Debug("websocket: Received token: %s", tokenResp.Data.Token)
++	// Never log the bearer token returned by the server.
++	logger.Debug("websocket: Received authentication token (redacted)")
+ 
+ 	return tokenResp.Data.Token, tokenResp.Data.ExitNodes, tokenResp.Data.ServerVersion, nil
+ }

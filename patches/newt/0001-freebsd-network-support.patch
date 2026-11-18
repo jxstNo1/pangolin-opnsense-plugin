@@ -662,6 +662,28 @@ index 0000000..e77aa16
 +	}
 +	return ""
 +}
+diff --git a/newt/websocket/client.go b/newt/websocket/client.go
+index 69f9b83..fa5c3aa 100644
+--- a/newt/websocket/client.go
++++ b/newt/websocket/client.go
+@@ -433,7 +433,6 @@ func (c *Client) getToken() (string, error) {
+ 	defer resp.Body.Close()
+ 
+ 	body, _ := io.ReadAll(resp.Body)
+-	logger.Debug("Token response body: %s", string(body))
+ 
+ 	if resp.StatusCode != http.StatusOK {
+ 		logger.Debug("Failed to get token with status code: %d", resp.StatusCode)
+@@ -469,7 +468,8 @@ func (c *Client) getToken() (string, error) {
+ 
+ 	c.serverVersion = tokenResp.Data.ServerVersion
+ 
+-	logger.Debug("Received token: %s", tokenResp.Data.Token)
++	// Never log the bearer token returned by the server.
++	logger.Debug("Received authentication token (redacted)")
+ 	telemetry.IncConnAttempt(ctx, "auth", "success")
+ 
+ 	return tokenResp.Data.Token, nil
 diff --git a/newt/websocket/config.go b/newt/websocket/config.go
 index 3bff8d6..893a50e 100644
 --- a/newt/websocket/config.go

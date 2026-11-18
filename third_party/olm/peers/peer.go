@@ -73,7 +73,8 @@ func ConfigurePeer(dev *device.Device, siteConfig SiteConfig, privateKey wgtypes
 	configBuilder.WriteString(fmt.Sprintf("persistent_keepalive_interval=%d\n", persistentKeepalive))
 
 	config := configBuilder.String()
-	logger.Debug("Configuring peer with config: %s", config)
+	// Never log config: it contains the WireGuard private key.
+	logger.Debug("Configuring peer public_key=%s endpoint=%s allowed_ips=%v", siteConfig.PublicKey, siteHost, allowedIPs)
 
 	if err := dev.IpcSet(config); err != nil {
 		return fmt.Errorf("failed to configure WireGuard peer: %v", err)

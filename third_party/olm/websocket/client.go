@@ -541,8 +541,8 @@ func (c *Client) getToken() (string, []ExitNode, string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-CSRF-Token", "x-csrf-protection")
 
-	// print out the request for debugging
-	logger.Debug("websocket: Requesting token from %s with body: %s", req.URL.String(), string(jsonData))
+	// Do not log the request body: it contains the client secret.
+	logger.Debug("websocket: Requesting token from %s", req.URL.String())
 
 	// Make the request
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -587,7 +587,8 @@ func (c *Client) getToken() (string, []ExitNode, string, error) {
 		return "", nil, "", fmt.Errorf("received empty token from server")
 	}
 
-	logger.Debug("websocket: Received token: %s", tokenResp.Data.Token)
+	// Never log the bearer token returned by the server.
+	logger.Debug("websocket: Received authentication token (redacted)")
 
 	return tokenResp.Data.Token, tokenResp.Data.ExitNodes, tokenResp.Data.ServerVersion, nil
 }

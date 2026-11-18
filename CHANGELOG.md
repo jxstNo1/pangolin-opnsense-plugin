@@ -71,6 +71,10 @@ All notable changes are documented here. The project follows a pragmatic
 
 ### Security notes
 
+- Redacted credential material from all debug logging paths: client secret in
+  the token request, bearer tokens in auth responses, the WireGuard private key
+  in peer configuration, and the full OLM startup config. These were latent
+  debug-level leaks in the upstream runtimes and are part of the vendored port.
 - Fixed a configd deadlock: plugin hooks must not call `pluginctl`/`configctl`
   recursively; Unbound is stopped directly and started through `start.sh`.
 - Fixed service detection to verify the PID command, not just PID existence.
