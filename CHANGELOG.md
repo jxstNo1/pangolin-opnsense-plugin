@@ -93,8 +93,9 @@ All notable changes are documented here. The project follows a pragmatic
   non-empty log directories are intentionally retained for diagnostics.
 - The standalone pf backend no longer turns an empty remote-route list into
   `to any`. NAT/filter anchors are flushed when there is no usable destination,
-  and `/1` routes are rejected. Inbound rules are bound to the interfaces that
-  carry the selected local networks.
+  `/1` routes are rejected, inbound rules are bound to the interfaces that
+  carry the selected local networks, and learned routes overlapping **any**
+  local interface network are discarded.
 - The OPNsense inbound pass rule is now bound to the source interfaces, and
   remote routes that overlap **any** local interface network are rejected, not
   just routes overlapping the selected source networks.
@@ -104,7 +105,9 @@ All notable changes are documented here. The project follows a pragmatic
 - The client clears the previous DNS snapshot at startup and retries failed
   snapshot writes instead of treating them as unchanged.
 - Manual Unbound domain overrides and wildcard entries now protect subdomains
-  in the conflict check.
+  in the conflict check. If the manual-entry model cannot be inspected, the
+  plugin removes the alias include (source and chroot) and restarts Unbound
+  instead of leaving stale aliases active.
 - Route-list changes trigger an immediate firewall sync, not only tunnel-IP
   changes. Subnet-router status snapshots are deep-copied.
 - Firewall sync now distinguishes write errors from "unchanged", checks pfctl

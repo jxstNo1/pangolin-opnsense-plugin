@@ -199,6 +199,8 @@ They were fixed and re-tested on the same OPNsense 26.7 VM:
 | Manual Unbound parent zones protect subdomains | `manual parent zone blocked subdomain; allowed alias published: PASS` |
 | Rule-write failures flush anchors | `write error flushed anchors: PASS` |
 | `pangolin sync` restarts only on config change | `unchanged sync kept agent pid 52537`; `changed config restarted agent pid 52537 -> 65926` |
+| Standalone pf route overlapping another local network | unit test: `10.0.0.0/8` and `192.168.1.0/24` pruned, only `10.20.0.0/16` remains |
+| Unbound inspection failure | `inspection failure removed source and chroot include: PASS` |
 
 The standalone pf backend is unit-tested for empty destinations, `/1`
 rejection, interface mapping and interface-bound filter rules; its data plane

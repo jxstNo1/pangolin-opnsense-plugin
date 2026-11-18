@@ -219,7 +219,9 @@ were fixed and re-tested on the same OPNsense 26.7 VM.
 | `pangolin sync` without changes | agent PID unchanged |
 | `pangolin sync` after DNS TTL change | agent restarted with a new PID |
 | Standalone pf empty routes | unit test: rules contain no `any` |
+| Standalone pf route overlapping another local network | unit test: route pruned, anchors would flush |
 | Standalone pf `/1` route | rejected by the CIDR validator |
+| Unbound inspection failure | source and chroot include removed in VM fixture; Unbound restarted |
 | Status pointer/slice sharing | unit tests prove snapshots and `SetSubnetRouter` copy |
 
 The new fixtures are listed in `tests/integration/qemu/README.md`. Note that

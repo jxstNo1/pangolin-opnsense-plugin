@@ -217,7 +217,27 @@ function pangolin_dns_sync_do($verbose = false)
     if ($active) {
         $conflicts = Pangolin::unboundConflicts($records);
         if ($conflicts === null) {
-            syslog(LOG_ERR, 'pangolin: cannot inspect manual Unbound entries; refusing to publish aliases');
+            syslog(LOG_ERR, 'pangolin: cannot inspect manual Unbound entries; removing alias include');
+            $removed = false;
+            if (is_file($include)) {
+                @unlink($include);
+                $removed = true;
+            }
+            $chrootInclude = '/var/unbound/etc/os-pangolin.conf';
+            if (is_file($chrootInclude)) {
+                @unlink($chrootInclude);
+                $removed = true;
+            }
+            $domainChanged = false;
+            try {
+                $domainChanged = pangolin_sync_unbound_dots($mdl, [], false);
+            } catch (\Throwable $e) {
+                syslog(LOG_WARNING, 'pangolin: failed to remove conditional-forwarding entries: ' . $e->getMessage());
+            }
+            if ($removed || $domainChanged) {
+                pangolin_restart_unbound();
+            }
+            service_log("DNS conflict inspection failed; alias include removed.\n", $verbose);
             return;
         }
         $blocked = [];

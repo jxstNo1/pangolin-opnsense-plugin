@@ -63,6 +63,20 @@ func TestInterfacesForNetworks(t *testing.T) {
 	}
 }
 
+func TestPruneRemoteRoutesRejectsOtherLocalNetworks(t *testing.T) {
+	remote := []string{
+		"10.20.0.0/16",
+		"192.168.1.0/24",
+		"192.168.1.128/25",
+		"10.0.0.0/8",
+	}
+	blocked := []string{"192.168.1.0/24", "10.10.0.0/16"}
+	got := pruneRemoteRoutes(remote, blocked)
+	if len(got) != 1 || got[0] != "10.20.0.0/16" {
+		t.Fatalf("unexpected pruned routes: %v", got)
+	}
+}
+
 func TestValidateCIDRsRejectsDangerousValues(t *testing.T) {
 	for _, cidr := range []string{
 		"0.0.0.0/0",

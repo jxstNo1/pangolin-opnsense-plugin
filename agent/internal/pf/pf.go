@@ -41,15 +41,16 @@ var (
 )
 
 type Config struct {
-	TunnelInterface       string
-	TunnelIP              string
-	LocalNetworks         []string
-	LocalInterfaces       []string
-	RemoteNetworks        []string
-	AllowedRemoteNetworks []string
-	NAT                   bool
-	Firewall              bool
-	WorkDir               string
+	TunnelInterface        string
+	TunnelIP               string
+	LocalNetworks          []string
+	LocalInterfaces        []string
+	LocalInterfaceNetworks []string
+	RemoteNetworks         []string
+	AllowedRemoteNetworks  []string
+	NAT                    bool
+	Firewall               bool
+	WorkDir                string
 }
 
 // Apply validates the rule inputs, checks that the OPNsense/FreeBSD anchor
@@ -92,6 +93,21 @@ func Apply(ctx context.Context, cfg Config) error {
 		return failClosed(ctx, err)
 	}
 	cfg.RemoteNetworks = remote
+
+	/* Reject learned destinations that overlap any local interface network.
+	 * The selected source networks alone are not enough: a server could
+	 * advertise another local VLAN and turn the quick pass rule into an
+	 * inter-VLAN bypass. */
+	blocked := append([]string(nil), cfg.LocalInterfaceNetworks...)
+	if len(blocked) == 0 {
+		networks, err := localInterfaceNetworks(cfg.TunnelInterface)
+		if err != nil {
+			return failClosed(ctx, err)
+		}
+		blocked = networks
+	}
+	blocked = append(blocked, cfg.LocalNetworks...)
+	cfg.RemoteNetworks = pruneRemoteRoutes(cfg.RemoteNetworks, blocked)
 
 	/* No learned destination means no NAT and no pass rule. Never turn an
 	 * empty route set into "any": that would open every destination. */
@@ -355,6 +371,68 @@ func interfacesForNetworks(local []string, entries []ifaceNetwork) []string {
 		out = append(out, name)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// localInterfaceNetworks returns every non-loopback IPv4 network on the host,
+// except the tunnel interface itself. Learned remote routes must not overlap
+// any of these.
+func localInterfaceNetworks(tunnelInterface string) ([]string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("pf: enumerate interfaces: %w", err)
+	}
+	var out []string
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Name == tunnelInterface {
+			continue
+		}
+		addresses, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, address := range addresses {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok || ipNet.IP.To4() == nil {
+				continue
+			}
+			out = append(out, ipNet.String())
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// pruneRemoteRoutes drops routes that overlap any blocked local network. An
+// empty result means the caller must flush the anchors, never emit "any".
+func pruneRemoteRoutes(remote, blocked []string) []string {
+	blockedNets := make([]*net.IPNet, 0, len(blocked))
+	for _, cidr := range blocked {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		blockedNets = append(blockedNets, network)
+	}
+	out := make([]string, 0, len(remote))
+	for _, cidr := range remote {
+		_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		overlaps := false
+		for _, blockedNet := range blockedNets {
+			if cidrOverlaps(network, blockedNet) {
+				overlaps = true
+				break
+			}
+		}
+		if overlaps {
+			log.Printf("pf: remote route %s overlaps a local interface network; skipped", cidr)
+			continue
+		}
+		out = append(out, cidr)
+	}
 	return out
 }
 

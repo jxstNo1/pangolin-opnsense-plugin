@@ -120,6 +120,9 @@ discards model changes made by `serializeToConfig()`.
   Unbound domain override `corp.example.com` and checks that a learned
   `db.corp.example.com` alias is not published while an unrelated alias is.
 - `dns-conflict.php` — pure parent-zone/wildcard conflict cases.
+- `dns-inspect-failure.sh` — temporarily removes the Unbound model class so the
+  manual-entry inspection fails. Expected: source and chroot alias include are
+  removed and Unbound is restarted.
 - `sync-restart.sh` plus `change-dns-ttl.php` — unchanged `pangolin sync` keeps
   the agent PID; a DNS TTL change restarts it. This covers the DNS page path.
 
@@ -150,6 +153,9 @@ sh /tmp/fwerror.sh
 
 fetch -q -o /tmp/dns-conflict.php http://10.0.2.2:8000/tests/integration/qemu/dns-conflict.php
 /usr/local/bin/php /tmp/dns-conflict.php
+
+fetch -q -o /tmp/dns-inspect-failure.sh http://10.0.2.2:8000/tests/integration/qemu/dns-inspect-failure.sh
+sh /tmp/dns-inspect-failure.sh
 
 fetch -q -o /tmp/manual-zone.php http://10.0.2.2:8000/tests/integration/qemu/manual-zone.php
 fetch -q -o /tmp/manual-zone-test.sh http://10.0.2.2:8000/tests/integration/qemu/manual-zone-test.sh
