@@ -344,6 +344,27 @@ function pangolin_sync_unbound_dots(Pangolin $mdl, array $status, bool $active):
         return false;
     }
 
+    /* Never add a forward zone that overlaps a manually managed one. */
+    $foreignDots = [];
+    foreach ($unbound->dots->dot->iterateItems() as $dot) {
+        if (str_starts_with((string)$dot->description, 'os-pangolin')) {
+            continue;
+        }
+        $foreign = strtolower(trim((string)$dot->domain, '.'));
+        if ($foreign !== '') {
+            $foreignDots[$foreign] = true;
+        }
+    }
+    foreach (array_keys($desired) as $domain) {
+        foreach (array_keys($foreignDots) as $foreign) {
+            if ($domain === $foreign || str_ends_with($domain, '.' . $foreign)) {
+                syslog(LOG_WARNING, "pangolin: conditional forward {$domain} skipped: manual Unbound domain override {$foreign} exists");
+                unset($desired[$domain]);
+                break;
+            }
+        }
+    }
+
     $changed = false;
     $newStored = [];
     foreach ($stored as $uuid => $domain) {
