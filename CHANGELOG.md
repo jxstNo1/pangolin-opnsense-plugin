@@ -14,6 +14,7 @@ All notable changes are documented here. The project follows a pragmatic
 - FreeBSD route add/delete/bypass backend with foreign-route protection.
 - Native subnet router for OPNsense:
   - explicit local-network allow-list;
+  - optional allowed remote-network allow-list;
   - IPv4-only route learning from the live tunnel;
   - source NAT to the tunnel address;
   - source-scoped pass rules in `os-pangolin/fw`;

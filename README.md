@@ -116,7 +116,8 @@ Then open **VPN → Pangolin**:
 3. **Sites** → enter the site endpoint, site ID/secret (independent of the
    client).
 4. **Subnet Routing** → select the machine client, enable subnet routing and
-   list the allowed local IPv4 CIDRs. Select the OPNsense backend.
+   list the allowed local IPv4 CIDRs. Optionally set an allowed remote-network
+   allow-list. Select the OPNsense backend.
 5. **DNS / Unbound** → enable alias synchronisation if private aliases should
    resolve on the LAN.
 6. Click **Apply**. Check **Overview** and **Logs**.

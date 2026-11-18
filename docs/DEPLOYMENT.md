@@ -57,6 +57,7 @@ configctl webgui restart
    - enable;
    - choose `OPNsense firewall integration`;
    - add the local VLAN CIDRs, e.g. `10.10.0.0/16,10.20.0.0/16`;
+   - optionally add an allowed remote-network allow-list;
    - keep NAT and filter rules enabled.
 5. **DNS / Unbound** (optional)
    - enable alias synchronisation;

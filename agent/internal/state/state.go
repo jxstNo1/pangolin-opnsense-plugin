@@ -35,11 +35,11 @@ type Status struct {
 	StartedAt string `json:"startedAt"`
 	UpdatedAt string `json:"updatedAt"`
 
-	Connected  bool   `json:"connected"`
-	Registered bool   `json:"registered"`
-	TunnelIP   string `json:"tunnelIp,omitempty"`
-	Interface  string `json:"interface,omitempty"`
-	DNSProxyIP string `json:"dnsProxyIp,omitempty"`
+	Connected  bool     `json:"connected"`
+	Registered bool     `json:"registered"`
+	TunnelIP   string   `json:"tunnelIp,omitempty"`
+	Interface  string   `json:"interface,omitempty"`
+	DNSProxyIP string   `json:"dnsProxyIp,omitempty"`
 	Routes     []string `json:"routes,omitempty"`
 
 	DNSRecords []DNSEntry `json:"dnsRecords,omitempty"`

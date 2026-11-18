@@ -450,6 +450,25 @@ function pangolin_firewall_sync_do($verbose = false)
     if (empty($remote)) {
         syslog(LOG_NOTICE, 'pangolin: tunnel has no remote IPv4 routes; subnet router filter set is empty');
     }
+    $allowedRemote = [];
+    foreach ($mdl->csvList((string)$mdl->subnetRouter->remoteNetworks) as $cidr) {
+        if (pangolin_valid_ipv4_cidr($cidr, 8)) {
+            $allowedRemote[] = $cidr;
+        }
+    }
+    if (!empty($allowedRemote)) {
+        $filtered = [];
+        foreach ($remote as $cidr) {
+            foreach ($allowedRemote as $allowed) {
+                if (pangolin_cidr_within($cidr, $allowed)) {
+                    $filtered[] = $cidr;
+                    break;
+                }
+            }
+        }
+        $remote = array_values(array_unique($filtered));
+        syslog(LOG_DEBUG, sprintf('pangolin: remote allow-list active, %d route(s) remain', count($remote)));
+    }
     syslog(
         LOG_DEBUG,
         sprintf(
@@ -622,6 +641,16 @@ function pangolin_cidr_range(string $cidr): ?array
     $mask = $prefix === 0 ? 0 : (0xffffffff << (32 - $prefix)) & 0xffffffff;
     $start = $ip & $mask;
     return [$start, $start | (~$mask & 0xffffffff)];
+}
+
+function pangolin_cidr_within(string $cidr, string $parent): bool
+{
+    $child = pangolin_cidr_range($cidr);
+    $outer = pangolin_cidr_range($parent);
+    if ($child === null || $outer === null) {
+        return false;
+    }
+    return $child[0] >= $outer[0] && $child[1] <= $outer[1];
 }
 
 function pangolin_write_atomic(string $path, string $content, int $mode): bool

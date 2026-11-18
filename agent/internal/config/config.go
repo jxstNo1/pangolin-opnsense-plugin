@@ -8,6 +8,7 @@
 package config
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,15 +68,15 @@ type SiteConfig struct {
 	Secret   string `json:"secret"`
 	Name     string `json:"name,omitempty"`
 
-	MTU                     int    `json:"mtu"`
-	InterfaceName           string `json:"interfaceName"`
-	UseNativeMainInterface  bool   `json:"useNativeMainInterface"`
-	UseNativeClientInterface bool  `json:"useNativeClientInterface"`
-	DisableSSH              bool   `json:"disableSsh"`
-	DisableClients          bool   `json:"disableClients"`
-	PingInterval            string `json:"pingInterval"`
-	PingTimeout             string `json:"pingTimeout"`
-	LogLevel                string `json:"logLevel,omitempty"`
+	MTU                      int    `json:"mtu"`
+	InterfaceName            string `json:"interfaceName"`
+	UseNativeMainInterface   bool   `json:"useNativeMainInterface"`
+	UseNativeClientInterface bool   `json:"useNativeClientInterface"`
+	DisableSSH               bool   `json:"disableSsh"`
+	DisableClients           bool   `json:"disableClients"`
+	PingInterval             string `json:"pingInterval"`
+	PingTimeout              string `json:"pingTimeout"`
+	LogLevel                 string `json:"logLevel,omitempty"`
 }
 
 type ClientConfig struct {
@@ -101,17 +102,20 @@ type ClientConfig struct {
 }
 
 type SubnetRouterConfig struct {
-	Enabled      bool     `json:"enabled"`
-	Backend      string   `json:"backend"`
+	Enabled       bool     `json:"enabled"`
+	Backend       string   `json:"backend"`
 	LocalNetworks []string `json:"localNetworks"`
-	NAT          bool     `json:"nat"`
-	Firewall     bool     `json:"firewall"`
+	// AllowedRemoteNetworks is an optional allow-list for routes learned from
+	// the tunnel. When empty, all non-default IPv4 routes are eligible.
+	AllowedRemoteNetworks []string `json:"allowedRemoteNetworks,omitempty"`
+	NAT                   bool     `json:"nat"`
+	Firewall              bool     `json:"firewall"`
 }
 
 type DNSConfig struct {
-	Enabled      bool     `json:"enabled"`
-	SyncInterval string   `json:"syncInterval"`
-	OutputFile   string   `json:"outputFile"`
+	Enabled      bool   `json:"enabled"`
+	SyncInterval string `json:"syncInterval"`
+	OutputFile   string `json:"outputFile"`
 	// ForwardDomains is an optional list of private DNS suffixes that should
 	// be conditionally forwarded to the machine-client DNS proxy. Static alias
 	// records are always published independently of this list.
@@ -149,8 +153,8 @@ func Default() *Config {
 			Holepunch:     true,
 		},
 		SubnetRouter: &SubnetRouterConfig{
-			Backend: SubnetRouterOPNsense,
-			NAT:     true,
+			Backend:  SubnetRouterOPNsense,
+			NAT:      true,
 			Firewall: true,
 		},
 		DNS: &DNSConfig{
@@ -346,8 +350,24 @@ func (c *Config) Validate() error {
 				if len(c.SubnetRouter.LocalNetworks) == 0 {
 					add("subnetRouter.localNetworks must not be empty when the subnet router is enabled")
 				}
+				localRanges := make([]v4Range, 0, len(c.SubnetRouter.LocalNetworks))
 				for _, n := range c.SubnetRouter.LocalNetworks {
 					validateLocalNetwork(n, add)
+					if r, ok := parseV4Range(n); ok {
+						localRanges = append(localRanges, r)
+					}
+				}
+				for _, n := range c.SubnetRouter.AllowedRemoteNetworks {
+					validateRemoteNetwork(n, add)
+					r, ok := parseV4Range(n)
+					if !ok {
+						continue
+					}
+					for _, local := range localRanges {
+						if rangesOverlap(r, local) {
+							add("subnetRouter.allowedRemoteNetworks: %s overlaps local network %s", n, local.cidr)
+						}
+					}
 				}
 				if c.Mode != ModeClient {
 					add("subnetRouter is only valid in client mode")
@@ -488,6 +508,54 @@ func validateLocalNetwork(cidr string, add func(string, ...any)) {
 	if ones == 0 {
 		add("subnetRouter.localNetworks: default route is not allowed")
 	}
+}
+
+func validateRemoteNetwork(cidr string, add func(string, ...any)) {
+	ip, ipNet, err := net.ParseCIDR(strings.TrimSpace(cidr))
+	if err != nil {
+		add("subnetRouter.allowedRemoteNetworks: invalid CIDR %q", cidr)
+		return
+	}
+	if ip.To4() == nil {
+		add("subnetRouter.allowedRemoteNetworks: only IPv4 is supported, got %q", cidr)
+		return
+	}
+	ones, bits := ipNet.Mask.Size()
+	if bits != 32 || ones < 8 {
+		add("subnetRouter.allowedRemoteNetworks: %q is too broad; use a prefix between /8 and /32", cidr)
+		return
+	}
+	if ones == 0 {
+		add("subnetRouter.allowedRemoteNetworks: default route is not allowed")
+		return
+	}
+	if !isUnicastIPv4(ipNet.IP.To4()) {
+		add("subnetRouter.allowedRemoteNetworks: %q is not a unicast IPv4 network", cidr)
+	}
+}
+
+type v4Range struct {
+	start uint32
+	end   uint32
+	cidr  string
+}
+
+func parseV4Range(cidr string) (v4Range, bool) {
+	ip, ipNet, err := net.ParseCIDR(strings.TrimSpace(cidr))
+	if err != nil || ip.To4() == nil {
+		return v4Range{}, false
+	}
+	ones, bits := ipNet.Mask.Size()
+	if bits != 32 {
+		return v4Range{}, false
+	}
+	start := binary.BigEndian.Uint32(ipNet.IP.To4())
+	size := uint64(1) << uint(32-ones)
+	return v4Range{start: start, end: start + uint32(size-1), cidr: cidr}, true
+}
+
+func rangesOverlap(a, b v4Range) bool {
+	return a.start <= b.end && b.start <= a.end
 }
 
 func isUnicastIPv4(ip net.IP) bool {

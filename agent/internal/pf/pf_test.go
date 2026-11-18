@@ -54,3 +54,19 @@ func TestValidateCIDRsRejectsDangerousValues(t *testing.T) {
 		t.Fatalf("valid CIDR rejected: %v", err)
 	}
 }
+
+func TestFilterRemoteNetworks(t *testing.T) {
+	remote := []string{"10.20.0.0/16", "10.20.5.0/24", "192.168.50.0/24"}
+	allowed := []string{"10.20.0.0/16"}
+	got, err := filterRemoteNetworks(remote, allowed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "10.20.0.0/16" || got[1] != "10.20.5.0/24" {
+		t.Fatalf("unexpected filtered routes: %v", got)
+	}
+	all, err := filterRemoteNetworks(remote, nil)
+	if err != nil || len(all) != 3 {
+		t.Fatalf("empty allow-list should keep all routes: %v %v", all, err)
+	}
+}

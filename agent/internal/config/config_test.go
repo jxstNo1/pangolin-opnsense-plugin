@@ -129,3 +129,19 @@ func TestForwardDomainValidation(t *testing.T) {
 		t.Fatal("expected invalid forward domain to be rejected")
 	}
 }
+
+func TestRemoteNetworkAllowList(t *testing.T) {
+	c := validClient()
+	c.SubnetRouter.AllowedRemoteNetworks = []string{"192.168.50.0/24"}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected valid remote allow-list: %v", err)
+	}
+	c.SubnetRouter.AllowedRemoteNetworks = []string{"0.0.0.0/0"}
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected default remote route to be rejected")
+	}
+	c.SubnetRouter.AllowedRemoteNetworks = []string{"10.10.128.0/17"}
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected remote/local overlap to be rejected")
+	}
+}

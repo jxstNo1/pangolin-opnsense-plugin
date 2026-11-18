@@ -111,8 +111,8 @@ func cmdStatus(args []string) error {
 	st, err := state.ReadStatus(path)
 	if err != nil {
 		st = state.Status{
-			Version: version.Version,
-			Mode:    *mode,
+			Version:   version.Version,
+			Mode:      *mode,
 			LastError: "agent is not running (status file missing)",
 		}
 	}

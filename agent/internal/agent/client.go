@@ -181,13 +181,14 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 			srStatus.Applied = applied
 			if applied && cfg.SubnetRouter.Backend == config.SubnetRouterPF {
 				pfCfg := pf.Config{
-					TunnelInterface: c.InterfaceName,
-					TunnelIP:        tunnelIP,
-					LocalNetworks:   cfg.SubnetRouter.LocalNetworks,
-					RemoteNetworks:  routes,
-					NAT:             cfg.SubnetRouter.NAT,
-					Firewall:        cfg.SubnetRouter.Firewall,
-					WorkDir:         filepath.Join(cfg.StateDir, "pf"),
+					TunnelInterface:       c.InterfaceName,
+					TunnelIP:              tunnelIP,
+					LocalNetworks:         cfg.SubnetRouter.LocalNetworks,
+					RemoteNetworks:        routes,
+					AllowedRemoteNetworks: cfg.SubnetRouter.AllowedRemoteNetworks,
+					NAT:                   cfg.SubnetRouter.NAT,
+					Firewall:              cfg.SubnetRouter.Firewall,
+					WorkDir:               filepath.Join(cfg.StateDir, "pf"),
 				}
 				if err := pf.Apply(runCtx, pfCfg); err != nil {
 					srStatus.Applied = false

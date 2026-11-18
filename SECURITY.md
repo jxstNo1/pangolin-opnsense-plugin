@@ -53,7 +53,8 @@ include live Pangolin secrets in a report; redact them.
 - **No all-VLAN exposure.** Local networks are an explicit allow-list. Prefixes
   shorter than /8, `0.0.0.0/0`, loopback, link-local, multicast and reserved
   networks are rejected in three places: XML model mask, PHP validator and Go
-  config validator.
+  config validator. An optional remote allow-list further restricts which
+  learned destination routes are installed; remote/local overlaps are rejected.
 - **No global pf rewrite.** The plugin registers `os-pangolin/nat` and
   `os-pangolin/fw` through OPNsense's firewall plugin API and loads only those
   anchors. It never runs `pfctl -f` on the global ruleset.

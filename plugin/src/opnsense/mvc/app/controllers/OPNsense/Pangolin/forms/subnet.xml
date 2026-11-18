@@ -23,6 +23,13 @@
         <help>Comma-separated IPv4 CIDRs. Only these sources are NATed and allowed through the tunnel. The default route and prefixes broader than /8 are rejected. Other VLANs remain isolated and are never opened implicitly.</help>
     </field>
     <field>
+        <id>pangolin.subnetRouter.remoteNetworks</id>
+        <label>Allowed remote networks</label>
+        <type>text</type>
+        <hint>192.168.50.0/24, 10.20.0.0/16</hint>
+        <help>Optional allow-list. When set, only remote routes contained in these IPv4 CIDRs are installed. Leave empty to allow all non-default routes learned from Pangolin. This does not grant access by itself; Pangolin ACLs still apply.</help>
+    </field>
+    <field>
         <id>pangolin.subnetRouter.nat</id>
         <label>Source-NAT to tunnel address</label>
         <type>checkbox</type>

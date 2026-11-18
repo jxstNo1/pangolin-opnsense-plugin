@@ -119,7 +119,8 @@ Pangolin / remote site resource
 The plugin generates NAT and filter rules only from:
 
 - the **selected** local networks in the model;
-- the **learned** remote routes in the agent status;
+- the **learned** remote routes in the agent status, optionally restricted by
+  the configured remote allow-list;
 - the **live** tunnel address and interface.
 
 It skips `0.0.0.0/0`, `0.0.0.0/1`, `128.0.0.0/1`, invalid addresses, non-IPv4

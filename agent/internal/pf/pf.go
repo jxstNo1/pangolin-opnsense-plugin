@@ -23,20 +23,21 @@ import (
 )
 
 const (
-	binary      = "/sbin/pfctl"
-	natAnchor   = "os-pangolin/nat"
-	fwAnchor    = "os-pangolin/fw"
+	binary       = "/sbin/pfctl"
+	natAnchor    = "os-pangolin/nat"
+	fwAnchor     = "os-pangolin/fw"
 	parentAnchor = "os-pangolin"
 )
 
 type Config struct {
-	TunnelInterface string
-	TunnelIP        string
-	LocalNetworks   []string
-	RemoteNetworks  []string
-	NAT             bool
-	Firewall        bool
-	WorkDir         string
+	TunnelInterface       string
+	TunnelIP              string
+	LocalNetworks         []string
+	RemoteNetworks        []string
+	AllowedRemoteNetworks []string
+	NAT                   bool
+	Firewall              bool
+	WorkDir               string
 }
 
 // Apply validates the rule inputs, checks that the OPNsense/FreeBSD anchor
@@ -58,6 +59,14 @@ func Apply(ctx context.Context, cfg Config) error {
 	if err := validateCIDRs(cfg.RemoteNetworks); err != nil {
 		return fmt.Errorf("pf: remote networks: %w", err)
 	}
+	if err := validateCIDRs(cfg.AllowedRemoteNetworks); err != nil {
+		return fmt.Errorf("pf: allowed remote networks: %w", err)
+	}
+	remote, err := filterRemoteNetworks(cfg.RemoteNetworks, cfg.AllowedRemoteNetworks)
+	if err != nil {
+		return err
+	}
+	cfg.RemoteNetworks = remote
 
 	workDir := cfg.WorkDir
 	if workDir == "" {
@@ -194,6 +203,39 @@ func validateCIDRs(cidrs []string) error {
 		}
 	}
 	return nil
+}
+
+// filterRemoteNetworks applies the optional allow-list. A remote route is
+// accepted only if its entire prefix is contained in one of the allowed
+// prefixes. An empty allow-list keeps all validated non-default routes.
+func filterRemoteNetworks(remote, allowed []string) ([]string, error) {
+	if len(allowed) == 0 {
+		return remote, nil
+	}
+	allowedNets := make([]*net.IPNet, 0, len(allowed))
+	for _, cidr := range allowed {
+		_, n, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			return nil, fmt.Errorf("pf: allowed remote network %q: %w", cidr, err)
+		}
+		allowedNets = append(allowedNets, n)
+	}
+	out := make([]string, 0, len(remote))
+	for _, cidr := range remote {
+		ip, n, err := net.ParseCIDR(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+		ones, bits := n.Mask.Size()
+		for _, allowedNet := range allowedNets {
+			aOnes, aBits := allowedNet.Mask.Size()
+			if bits == aBits && ones >= aOnes && allowedNet.Contains(ip) {
+				out = append(out, cidr)
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func run(ctx context.Context, args ...string) (string, error) {

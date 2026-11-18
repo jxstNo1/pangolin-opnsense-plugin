@@ -149,6 +149,29 @@ class Pangolin extends BaseModel
                 }
                 $ranges[] = [$start, $end, $network];
             }
+
+            foreach ($this->csvList((string)$this->subnetRouter->remoteNetworks) as $network) {
+                $range = $this->parseCIDR($network);
+                if ($range === null) {
+                    $errors[] = sprintf('Subnet routing: remote network "%s" is not a valid IPv4 CIDR.', $network);
+                    continue;
+                }
+                [$start, $end, $prefix] = $range;
+                if ($prefix < 8) {
+                    $errors[] = sprintf('Subnet routing: remote network %s is too broad; use /8 or narrower.', $network);
+                }
+                if ($start === 0 && $end === 0xffffffff) {
+                    $errors[] = 'Subnet routing: the default route 0.0.0.0/0 is never allowed.';
+                }
+                if (!$this->isUnicastIPv4($start)) {
+                    $errors[] = sprintf('Subnet routing: remote network %s is not a unicast network.', $network);
+                }
+                foreach ($ranges as [$localStart, $localEnd, $localNetwork]) {
+                    if ($start <= $localEnd && $localStart <= $end) {
+                        $errors[] = sprintf('Subnet routing: remote network %s overlaps local network %s.', $network, $localNetwork);
+                    }
+                }
+            }
             if ((string)$this->subnetRouter->backend === 'pf') {
                 $errors[] = 'The standalone pf backend is not available in the OPNsense plugin; use the OPNsense backend.';
             }
@@ -253,6 +276,7 @@ class Pangolin extends BaseModel
             'enabled' => $this->subnetRouterEnabled(),
             'backend' => (string)$this->subnetRouter->backend,
             'localNetworks' => $this->csvList((string)$this->subnetRouter->localNetworks),
+            'allowedRemoteNetworks' => $this->csvList((string)$this->subnetRouter->remoteNetworks),
             'nat' => (string)$this->subnetRouter->nat === '1',
             'firewall' => (string)$this->subnetRouter->firewall === '1',
         ];

@@ -14,12 +14,12 @@ import (
 const debounce = 750 * time.Millisecond
 
 type Hook struct {
-	path       string
-	statePath  string
-	mode       string
-	events     chan string
-	done       chan struct{}
-	closeOnce  sync.Once
+	path      string
+	statePath string
+	mode      string
+	events    chan string
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func New(path, statePath, mode string) *Hook {

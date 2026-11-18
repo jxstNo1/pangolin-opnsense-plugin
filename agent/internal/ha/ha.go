@@ -17,9 +17,9 @@ import (
 type State string
 
 const (
-	Master State = "MASTER"
-	Backup State = "BACKUP"
-	Init   State = "INIT"
+	Master  State = "MASTER"
+	Backup  State = "BACKUP"
+	Init    State = "INIT"
 	Unknown State = "UNKNOWN"
 )
 
