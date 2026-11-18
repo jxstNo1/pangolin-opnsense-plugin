@@ -191,7 +191,7 @@ Result summary:
 | Agent config | `client.json` mode 0600; secret absent from argv and logs |
 | Unreachable endpoint | `connected:false`; anchors/DNS not opened; clean stop |
 | pf/Unbound fixtures on installed package | scoped NAT/pass rules, aliases resolve, public DNS untouched, disconnect cleanup |
-| `pkg delete` | package files, actions, anchors, Unbound include and runtime dirs removed |
+| `pkg delete` | package files, actions, anchors, Unbound include and runtime state removed; non-empty log directory retained |
 
 The first package attempt exposed two packaging bugs: `pkg create` had silently
 left out the `+*_INSTALL` scripts because no metadata directory was supplied,

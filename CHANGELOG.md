@@ -89,7 +89,8 @@ All notable changes are documented here. The project follows a pragmatic
 - `+POST_INSTALL` called the nonexistent `configctl configd sync` action;
   it now reloads configd the same way OPNsense plugin packaging does.
 - Uninstall left empty `/var/db/pangolin`, `/var/etc/pangolin` and
-  `/var/log/pangolin` directories behind.
+  `/var/log/pangolin` directories behind. Empty directories are now removed;
+  non-empty log directories are intentionally retained for diagnostics.
 
 ### Security notes
 

@@ -43,6 +43,7 @@ show_state() {
     fi
     echo "--- runtime state ---"
     ls -la /var/db/pangolin 2>&1 | sed 's/^/db: /'
+    ls -la /var/log/pangolin 2>&1 | sed 's/^/log: /'
     pgrep -lf pangolin-agent 2>/dev/null | sed 's/^/pid: /' || echo "no pangolin-agent process"
 }
 

@@ -49,7 +49,7 @@ Source state: commit `e9d5701` (on top of `a5e6b84`).
 | 20 | Unbound restart persistence | `configctl unbound restart` → aliases still resolve |
 | 21 | DNS update | new alias `new.internal.example → 100.64.0.9` appears in source and chroot include and resolves |
 | 22 | Disconnect cleanup | anchors empty, rule files gone, include removed, `new.internal.example` → `NXDOMAIN` |
-| 23 | `pkg delete` cleanup | package files, configd actions, anchors, Unbound include, `/var/db/pangolin`, `/var/etc/pangolin`, `/var/log/pangolin` removed |
+| 23 | `pkg delete` cleanup | package files, configd actions, anchors, Unbound include and runtime state removed; non-empty log directory retained for diagnostics |
 | 24 | Clean stop | `configctl pangolin_client stop` → `OK`; no agent process remains |
 
 ### Blocked — requires authorized Pangolin instance and lab access
