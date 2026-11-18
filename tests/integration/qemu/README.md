@@ -52,6 +52,49 @@ real firewall: they simulate a connected client and replace state files.
 
    For a source-only test, tar `plugin/src` manually.
 
+## Package lifecycle test
+
+`build-pkg.sh` builds a real FreeBSD `.pkg` from the release tarball **inside
+the OPNsense VM** with `pkg create`. `pkg-verify.sh` records the before/after
+state. The package scripts are part of the test: without a metadata directory
+(`-m`), `pkg create` silently omits `+POST_INSTALL`/`+POST_DEINSTALL` and the
+configd actions are never registered.
+
+```sh
+# in the VM, with the repository served at http://10.0.2.2:8000
+fetch -q -o /tmp/os-pangolin-0.1.0-amd64.tgz \
+  http://10.0.2.2:8000/dist/os-pangolin-0.1.0-amd64.tgz
+fetch -q -o /tmp/build-pkg.sh \
+  http://10.0.2.2:8000/tests/integration/qemu/build-pkg.sh
+sh /tmp/build-pkg.sh
+
+sh /tmp/pkg-verify.sh pre
+pkg install -y /tmp/os-pangolin-0.1.0.pkg
+sh /tmp/pkg-verify.sh post-install
+
+fetch -q -o /tmp/configure-model.php \
+  http://10.0.2.2:8000/tests/integration/qemu/configure-model.php
+/usr/local/bin/php /tmp/configure-model.php
+
+fetch -q -o /tmp/service-start.sh \
+  http://10.0.2.2:8000/tests/integration/qemu/service-start.sh
+sh /tmp/service-start.sh
+
+pkg delete -y os-pangolin
+sh /tmp/pkg-verify.sh post-delete
+```
+
+`service-start.sh` proves that `rc.d` starts the agent binary (not
+`/usr/sbin/daemon` again), that `client.json` is 0600, that an unreachable
+endpoint is reported as `connected: false`, and that `stop` terminates the
+agent. It does **not** prove authentication; that needs the E2E credentials in
+`tests/e2e/README.md`.
+
+`configure-model.php` uses the real OPNsense model API and
+`Config::getInstance()->save()`. Do not replace the save call with
+`write_config()`: that rebuilds the config singleton from the legacy array and
+discards model changes made by `serializeToConfig()`.
+
 ## Fixtures
 
 - `fake-state.sh` — kills the real client, starts a process whose command name

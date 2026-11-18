@@ -14,8 +14,14 @@ chmod 755 /var/db/pangolin /var/log/pangolin /var/etc/pangolin
 chmod 755 /usr/local/etc/rc.d/pangolin_client /usr/local/etc/rc.d/pangolin_site
 chmod 700 /usr/local/etc/pangolin/hook.sh 2>/dev/null || true
 
-# Register the plugin model and actions with the running configd instance.
-/usr/local/sbin/configctl configd sync >/dev/null 2>&1 || true
+# Register the plugin model and configd actions. OPNsense's own plugin
+# packaging reloads configd here; there is no "configd sync" action.
+if [ -f /usr/local/etc/rc.d/configd ]; then
+    /usr/local/etc/rc.d/configd restart >/dev/null 2>&1 || true
+fi
+if [ -f /usr/local/etc/rc.configure_plugins ]; then
+    /usr/local/etc/rc.configure_plugins POST_INSTALL >/dev/null 2>&1 || true
+fi
 /usr/local/sbin/configctl filter reload >/dev/null 2>&1 || true
 
 exit 0

@@ -23,4 +23,5 @@ else
     echo "php not found; skipping PHP lint"
 fi
 "$PY" scripts/check-xml.py
+"$PY" scripts/check-rc.py
 echo "checks complete"

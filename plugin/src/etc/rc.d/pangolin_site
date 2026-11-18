@@ -14,12 +14,13 @@ rcvar="${name}_enable"
 : ${pangolin_site_logfile:="/var/log/pangolin/site.log"}
 
 pidfile="/var/run/pangolin_site.pid"
+agent="/usr/local/sbin/pangolin-agent"
 command="/usr/sbin/daemon"
 procname="/usr/sbin/daemon"
 start_precmd="pangolin_site_precmd"
 stop_postcmd="pangolin_site_poststop"
 
-command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_site_logfile} ${procname} run --config ${pangolin_site_config}"
+command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_site_logfile} ${agent} run --config ${pangolin_site_config}"
 
 pangolin_site_precmd()
 {
@@ -28,8 +29,8 @@ pangolin_site_precmd()
         echo "missing ${pangolin_site_config}" >&2
         return 1
     fi
-    if [ ! -x "${procname}" ]; then
-        echo "missing ${procname}" >&2
+    if [ ! -x "${agent}" ]; then
+        echo "missing ${agent}" >&2
         return 1
     fi
     return 0

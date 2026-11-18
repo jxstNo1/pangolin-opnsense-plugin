@@ -14,4 +14,17 @@ rm -f /var/db/pangolin/client-status.json /var/db/pangolin/site-status.json
 rm -f /var/db/pangolin/dns-records.json /var/db/pangolin/unbound-dots.json
 rm -rf /var/db/pangolin/pf
 
+if [ -f /usr/local/etc/rc.configure_plugins ]; then
+    /usr/local/etc/rc.configure_plugins POST_DEINSTALL >/dev/null 2>&1 || true
+fi
+if [ -f /usr/local/etc/rc.d/configd ]; then
+    /usr/local/etc/rc.d/configd restart >/dev/null 2>&1 || true
+fi
+
+# Remove the plugin-owned runtime directories when they are empty. Logs that
+# still exist are intentionally left in place for diagnostics.
+for dir in /var/db/pangolin /var/etc/pangolin /var/log/pangolin; do
+    rmdir "${dir}" >/dev/null 2>&1 || true
+done
+
 exit 0

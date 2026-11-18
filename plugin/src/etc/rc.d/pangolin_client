@@ -14,12 +14,13 @@ rcvar="${name}_enable"
 : ${pangolin_client_logfile:="/var/log/pangolin/client.log"}
 
 pidfile="/var/run/pangolin_client.pid"
+agent="/usr/local/sbin/pangolin-agent"
 command="/usr/sbin/daemon"
 procname="/usr/sbin/daemon"
 start_precmd="pangolin_client_precmd"
 stop_postcmd="pangolin_client_poststop"
 
-command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_client_logfile} ${procname} run --config ${pangolin_client_config}"
+command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_client_logfile} ${agent} run --config ${pangolin_client_config}"
 
 pangolin_client_precmd()
 {
@@ -28,8 +29,8 @@ pangolin_client_precmd()
         echo "missing ${pangolin_client_config}" >&2
         return 1
     fi
-    if [ ! -x "${procname}" ]; then
-        echo "missing ${procname}" >&2
+    if [ ! -x "${agent}" ]; then
+        echo "missing ${agent}" >&2
         return 1
     fi
     return 0
