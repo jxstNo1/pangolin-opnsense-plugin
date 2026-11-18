@@ -46,11 +46,15 @@ configuration OK: mode=site stateDir=/var/db/pangolin
 ```sh
 python3 scripts/check-php.py "$(command -v php)"
 python3 scripts/check-xml.py
+python3 scripts/check-rc.py
+python3 scripts/check-redaction.py
 ```
 
-Result: all plugin PHP files pass `php -l` (PHP 8.4.27), and all plugin XML
-files parse. The model was additionally exercised by the OPNsense MVC runtime,
-which catches field-type/mask errors that a plain XML parse cannot.
+Result: all plugin PHP files pass `php -l` (PHP 8.4.27), all plugin XML
+files parse, the rc.d command split passes its regression check and the
+vendored logging redactions are still present. The model was additionally
+exercised by the OPNsense MVC runtime, which catches field-type/mask errors
+that a plain XML parse cannot.
 
 ## 4. QEMU/OPNsense integration
 
@@ -170,6 +174,31 @@ disconnect cleanup it returned `NXDOMAIN`.
 - PID-only liveness checks were fooled by stale/recycled PIDs. The plugin now
   verifies the PID command name.
 
+## 4.1 Phase 2 package and service validation (2026-11-18)
+
+A second, fresh OPNsense 26.7 VM was used to build a real `.pkg` with
+`pkg create`, install it, run the packaged agent, and uninstall it. The full
+matrix, commands and log excerpts are in `docs/PHASE2-VALIDATION.md`.
+
+Result summary:
+
+| Check | Result |
+|-------|--------|
+| `pkg create` inside the VM | `os-pangolin-0.1.0.pkg`, FreeBSD:15:amd64, 24.2 MiB flat |
+| Package scripts included | `+POST_INSTALL`/`+POST_DEINSTALL` present and executed |
+| `pkg install` | files, modes and configd actions correct |
+| Packaged agent start | real process `/usr/local/sbin/pangolin-agent run --config ...` |
+| Agent config | `client.json` mode 0600; secret absent from argv and logs |
+| Unreachable endpoint | `connected:false`; anchors/DNS not opened; clean stop |
+| pf/Unbound fixtures on installed package | scoped NAT/pass rules, aliases resolve, public DNS untouched, disconnect cleanup |
+| `pkg delete` | package files, actions, anchors, Unbound include and runtime dirs removed |
+
+The first package attempt exposed two packaging bugs: `pkg create` had silently
+left out the `+*_INSTALL` scripts because no metadata directory was supplied,
+and both rc.d scripts used `${procname}` (the daemon) as daemon's child command,
+so the agent could not start (`daemon: run: No such file or directory`). Both
+are fixed; `scripts/check-rc.py` guards the command split.
+
 ## 5. Not yet tested
 
 - Authenticated connection to a real Pangolin server (Cloud or self-hosted).
@@ -182,7 +211,9 @@ disconnect cleanup it returned `NXDOMAIN`.
 - LAN device → OPNsense → remote resource data plane with a real tunnel.
 - Two-node CARP failover.
 - IPv6.
-- OPNsense ports `make package` in a clean ports tree.
+- OPNsense ports `make package` in a clean ports tree. A real FreeBSD `.pkg`
+  was built with `pkg create` and tested; the ports-tree build path is separate
+  and still untested.
 - Browser E2E: the test VM used a self-signed web GUI certificate; browser
   automation correctly refused it. UI pages were validated with authenticated
   HTTP(S) requests instead.
@@ -207,6 +238,8 @@ Before calling 0.1.0 production-ready:
 
 ## 7. Reproducible fixtures
 
-`tests/integration/qemu/` contains the console bridge, simulated state fixture,
-DNS update fixture and cleanup fixture used above. They are development tools,
-not production scripts. See its README for the sequence.
+`tests/integration/qemu/` contains the console bridge, package builder and
+verifier, model fixture, service-start test, simulated state fixture, DNS
+update fixture and cleanup fixture used above. They are development tools, not
+production scripts. See its README for the sequence. The live-server harness is
+in `tests/e2e/` and is not run by CI.

@@ -69,6 +69,11 @@ include live Pangolin secrets in a report; redact them.
 - **Secrets at rest.** `config.xml` is root-readable. Agent JSON is mode 0600.
   Newt's credential cache is mode 0600 and lives under `/var/db/pangolin`, not
   in a user home. Status and DNS snapshot files contain no secrets.
+- **Uninstall scope.** `pkg delete` removes generated agent JSON, runtime state,
+  pf anchors and the Unbound include. The `OPNsense/pangolin` model section is
+  intentionally left in `config.xml` and its backups, as is normal for OPNsense
+  plugins. If the firewall is decommissioned or the client is retired, remove
+  that section manually and rotate the Pangolin client secret.
 - **No secrets in argv or logs.** The agent is started with `--config path`
   only. It does not log secrets. The vendored runtimes are patched to redact
   the token request body, bearer tokens, WireGuard private keys and the full

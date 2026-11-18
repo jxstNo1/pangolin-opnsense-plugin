@@ -25,12 +25,18 @@ claim that every item is complete. Status is updated when evidence exists.
 - [x] FreeBSD DNS platform build fix.
 - [x] Cross-compile `pangolin-agent` for `freebsd/amd64` and `arm64`.
 - [x] Run the binary on OPNsense/FreeBSD and start both modes.
+- [x] Build, install and uninstall a real FreeBSD `.pkg` in an isolated
+      OPNsense 26.7 VM; verify packaged agent startup, configd actions and
+      package-script cleanup.
+- [x] Verify the packaged service fails closed and keeps the secret out of
+      logs when the endpoint is unreachable.
 - [ ] Successful authenticated connection to a live Pangolin endpoint.
 - [ ] WireGuard handshake, ping and reconnect against a live endpoint.
 - [ ] Hole punching in a NAT lab.
 
 Blocker: no live Pangolin instance/credentials in the development environment.
-This is the highest-priority external dependency for beta.
+This is the highest-priority external dependency for beta. See
+`docs/PHASE2-VALIDATION.md` for the executed matrix and the exact inputs needed.
 
 ## Phase 3 — Native subnet router (30 Nov–6 Dec)
 
@@ -89,7 +95,9 @@ This is the highest-priority external dependency for beta.
 - [x] Compatibility, deployment, HA, testing and porting docs.
 - [x] Build/lint/package scripts.
 - [x] Reproducible FreeBSD cross-build.
-- [ ] OPNsense ports package build and repository publication.
+- [x] Real `.pkg` creation, install and uninstall in an isolated OPNsense 26.7
+      VM (`pkg create` fixture).
+- [ ] OPNsense ports package build (`make package`) and repository publication.
 - [ ] Signed release artifacts.
 - [ ] Final release notes and known-issues update.
 

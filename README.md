@@ -97,8 +97,10 @@ must build it first; `plugin/Makefile` is the ports entry point.
 ## Install on OPNsense
 
 The supported installation path is the OPNsense plugin package built from
-`plugin/Makefile` (ports tree). For a development firewall, the release tarball
-can be copied and extracted into `/usr/local`:
+`plugin/Makefile` (ports tree). A real `.pkg` built with `pkg create` has been
+installed and uninstalled successfully in the QEMU fixture; the ports-tree
+`make package` path still needs a clean-tree test. For a development firewall,
+the release tarball can be copied and extracted into `/usr/local`:
 
 ```sh
 fetch -o /tmp/os-pangolin.tgz http://<your-server>/os-pangolin-0.1.0-amd64.tgz
@@ -152,9 +154,12 @@ See [SECURITY.md](SECURITY.md) and [docs/HA.md](docs/HA.md).
 - PHP 8.4 lint for every plugin PHP file; XML parse for every plugin XML file.
 - QEMU integration checks: package discovery, MVC pages/API, service start/stop,
   config generation, pf anchor rules, Unbound include + resolution, cleanup.
+- Real FreeBSD `.pkg` built with `pkg create`, installed, exercised and
+  uninstalled on a fresh OPNsense 26.7 VM, including configd action
+  registration and package-script cleanup.
 
-Full details and test evidence: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-and [docs/TESTING.md](docs/TESTING.md).
+Full details and test evidence: [docs/PHASE2-VALIDATION.md](docs/PHASE2-VALIDATION.md),
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) and [docs/TESTING.md](docs/TESTING.md).
 
 ## Known limitations
 

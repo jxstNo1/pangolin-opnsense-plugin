@@ -18,6 +18,17 @@ The package must contain the FreeBSD agent binary at
 `scripts/build-agent.sh` or let the port do it; a package without the binary
 will fail at service start with `missing /usr/local/sbin/pangolin-agent`.
 
+The ports-tree `make package` path has not been exercised yet. The tested
+package path is the isolated fixture below.
+
+### 1b. Direct `.pkg` build (tested in QEMU)
+
+`tests/integration/qemu/build-pkg.sh` builds a real package from the release
+tarball inside an OPNsense 26.7 VM with `pkg create`, including the
+`+POST_INSTALL`/`+POST_DEINSTALL` scripts. It is a test fixture, not a
+repository replacement. The package was installed, exercised and uninstalled
+successfully; see `docs/PHASE2-VALIDATION.md`.
+
 ### 2. Development tarball
 
 `make dist` produces `dist/os-pangolin-0.1.0-amd64.tgz`. On a lab firewall:
@@ -135,8 +146,16 @@ allowed to query Unbound can resolve the published records.
 
 ## Uninstall
 
-Remove the package (or the files copied into `/usr/local`), then run the
-`+POST_DEINSTALL` steps manually:
+For a real package, `pkg delete -y os-pangolin` runs `+PRE_DEINSTALL` and
+`+POST_DEINSTALL` automatically. They stop the services, remove plugin-owned
+anchors and the Unbound include, delete generated agent/state files, unload the
+configd actions, and remove empty runtime directories.
+
+The model section `OPNsense/pangolin` remains in `config.xml` and its backups,
+as is normal for OPNsense plugins. Remove it manually when decommissioning the
+firewall and rotate the Pangolin client secret.
+
+For a manual tarball install, run the cleanup steps by hand:
 
 ```sh
 service pangolin_client stop

@@ -24,4 +24,5 @@ else
 fi
 "$PY" scripts/check-xml.py
 "$PY" scripts/check-rc.py
+"$PY" scripts/check-redaction.py
 echo "checks complete"

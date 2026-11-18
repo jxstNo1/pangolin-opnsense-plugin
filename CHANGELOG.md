@@ -50,9 +50,14 @@ All notable changes are documented here. The project follows a pragmatic
   - settings GET/POST, validation rejection of `0.0.0.0/0` and plain HTTP;
   - config generation with 0600 mode;
   - service start/stop/restart/status;
+  - packaged rc.d startup of the real agent with an unreachable endpoint
+    (`connected:false`, no anchors/DNS opened);
   - pf anchor registration and source-scoped rules;
   - Unbound include generation, resolution, update and NXDOMAIN cleanup;
   - conditional-forwarding path code review (not exercised with a live model).
+- Real FreeBSD `.pkg` built with `pkg create` inside a fresh OPNsense 26.7 VM,
+  installed, exercised and uninstalled; package scripts, configd action
+  registration and runtime-directory cleanup verified.
 - QEMU fixtures for simulated connected state, rule generation and cleanup.
 
 ### Known issues / not yet verified
@@ -66,8 +71,25 @@ All notable changes are documented here. The project follows a pragmatic
 - IPv6 subnet routing is not implemented.
 - Browser automation could not use the test VM's self-signed certificate; UI
   behavior was validated with authenticated HTTP(S) API calls instead.
-- The plugin's OPNsense ports package (`make package`) was not built in this
-  cycle; the development tarball and manual `/usr/local` install were used.
+- A real `.pkg` was built with `pkg create`; the OPNsense ports-tree
+  `make package` path was not exercised.
+- Uninstalling the package leaves the `OPNsense/pangolin` model section in
+  `config.xml` and its backups; remove it manually when decommissioning and
+  rotate the client secret.
+
+### Fixed
+
+- rc.d services passed `${procname}` (`/usr/sbin/daemon`) as daemon's child
+  command, so the agent never started (`daemon: run: No such file or
+  directory`). `procname` remains the daemon for rc.subr liveness checks;
+  `command_args` now uses the agent path. Added `scripts/check-rc.py`.
+- The package-build fixture called `pkg create` without a metadata directory,
+  which silently omitted `+POST_INSTALL`/`+POST_DEINSTALL`; configd actions and
+  runtime directories were not created.
+- `+POST_INSTALL` called the nonexistent `configctl configd sync` action;
+  it now reloads configd the same way OPNsense plugin packaging does.
+- Uninstall left empty `/var/db/pangolin`, `/var/etc/pangolin` and
+  `/var/log/pangolin` directories behind.
 
 ### Security notes
 

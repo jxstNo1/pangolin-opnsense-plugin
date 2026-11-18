@@ -70,8 +70,10 @@ build is reproducible from this repository.
 - The official CLI's `--subnet-router` help still says "Linux only". The
   native OPNsense implementation is separate from that flag and does not rely
   on nftables.
-- The plugin does not yet ship a prebuilt OPNsense package repository; build
-  from `plugin/Makefile` or use the release tarball.
+- The plugin does not yet ship a prebuilt OPNsense package repository. Build
+  from `plugin/Makefile` or use the release tarball. A real `.pkg` built with
+  `pkg create` was installed and uninstalled successfully in the QEMU fixture;
+  repository publication is still outstanding.
 
 ## Update procedure
 
