@@ -54,7 +54,9 @@ All notable changes are documented here. The project follows a pragmatic
     (`connected:false`, no anchors/DNS opened);
   - pf anchor registration and source-scoped rules;
   - Unbound include generation, resolution, update and NXDOMAIN cleanup;
-  - conditional-forwarding path code review (not exercised with a live model).
+  - conditional forwarding exercised with a local test DNS server: plugin-owned
+    entries added/removed, manual entry preserved, config and DNS answers
+    verified, including the model-unavailable fallback.
 - Real FreeBSD `.pkg` built with `pkg create` inside a fresh OPNsense 26.7 VM,
   installed, exercised and uninstalled; package scripts, configd action
   registration and runtime-directory cleanup verified.
@@ -108,6 +110,20 @@ All notable changes are documented here. The project follows a pragmatic
   in the conflict check. If the manual-entry model cannot be inspected, the
   plugin removes the alias include (source and chroot) and restarts Unbound
   instead of leaving stale aliases active.
+- Conditional-forwarding entries are now actually persisted with
+  `Config::save()` (previously only serialized in memory). Template generation
+  uses the `OPNsense/Unbound/*` wildcard and verifies `templates...done`;
+  Unbound restarts only count as successful when a new live PID appears.
+- The generated Unbound alias include starts with a `server:` section so a
+  preceding `dot.conf` forward-zone cannot leak parser state into the alias
+  file.
+- When the Unbound model cannot be loaded, recorded plugin-owned forwarding
+  UUIDs are removed directly from `config.xml`. The description and domain
+  must still match the plugin marker; manual entries are never touched, and
+  the state file is updated only after a successful save.
+- The standalone pf backend rejects learned loopback, link-local, multicast
+  and reserved IPv4 destinations (including `0/8`, `127/8`, `169.254/16`,
+  `224/4`, `240/4`, TEST-NET and benchmarking ranges).
 - Route-list changes trigger an immediate firewall sync, not only tunnel-IP
   changes. Subnet-router status snapshots are deep-copied.
 - Firewall sync now distinguishes write errors from "unchanged", checks pfctl

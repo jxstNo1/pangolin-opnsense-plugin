@@ -17,8 +17,11 @@ Result (2026-11-18): all packages pass; `go vet` clean. Covered:
 - config defaults, absolute paths, endpoint scheme, secret/interface/duration
   validation, default-route rejection, broad-prefix rejection, overlap and
   insecure-permission handling;
-- atomic status/DNS writes, stale/missing health file handling;
-- pf NAT/filter rule text, source scoping, default-route and newline rejection;
+- atomic status/DNS writes, stale/missing health file handling, heartbeat,
+  dirty-write retry and deep-copied snapshots;
+- pf NAT/filter rule text, source scoping, interface binding, empty-route
+  handling, loopback/link-local/multicast/reserved rejection and newline
+  rejection;
 - CARP output parsing (`MASTER`, `BACKUP`, `INIT`, missing CARP);
 - route normalization and DNS snapshot sorting.
 
@@ -146,6 +149,7 @@ No `0.0.0.0/0`, no `128.0.0.0/1`, no `from any` source rule, no inter-VLAN rule.
 Generated Unbound include for simulated aliases:
 
 ```text
+server:
 # Managed by os-pangolin. Do not edit; changes are overwritten.
 # Alias records are learned from the running Pangolin machine client.
 local-data: "db.internal.example. 60 IN A 100.64.0.2"
@@ -222,11 +226,17 @@ were fixed and re-tested on the same OPNsense 26.7 VM.
 | Standalone pf route overlapping another local network | unit test: route pruned, anchors would flush |
 | Standalone pf `/1` route | rejected by the CIDR validator |
 | Unbound inspection failure | source and chroot include removed in VM fixture; Unbound restarted |
+| Conditional forwarding | plugin dot added, old plugin dot removed, manual dot preserved; `dot.conf` and `drill` answers verified |
+| Unbound model unavailable | plugin-owned forwarding UUID removed directly from `config.xml`; manual dot remained and still answered |
+| Unbound include section | include starts with `server:`; `unbound-checkconf` reports no errors even with `dot.conf` forward zones |
+| Standalone pf reserved targets | loopback, link-local, multicast, `0/8`, `240/4`, TEST-NET and benchmarking CIDRs rejected |
 | Status pointer/slice sharing | unit tests prove snapshots and `SetSubnetRouter` copy |
 
 The new fixtures are listed in `tests/integration/qemu/README.md`. Note that
-`unbound-checkconf` still reports the VM's pre-existing `pythonmod`/`unbound-dnsbl`
-path error; Unbound itself runs and resolves the aliases above.
+The conditional-forwarding fixture patches the disposable VM's missing
+`unbound-dnsbl` Python module and binds Unbound to `127.0.0.1` for its local
+test resolver; `unbound-checkconf` then reports no errors. This workaround is
+test-only and not part of the plugin.
 
 ## 5. Not yet tested
 
@@ -235,8 +245,8 @@ path error; Unbound itself runs and resolves the aliases above.
 - Live site resource exposure.
 - Live machine-client alias set and private HTTPS resource (TLS/SNI/Host).
 - Conditional forwarding against a live Pangolin private resolver; the model
-  manipulation/cleanup code was reviewed and linted, but no live resolver was
-  available.
+  and local test-DNS path (add/remove/manual preservation/model-unavailable)
+  are verified in the VM, but no live Pangolin resolver was available.
 - LAN device → OPNsense → remote resource data plane with a real tunnel.
 - Two-node CARP failover.
 - IPv6.

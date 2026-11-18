@@ -75,6 +75,9 @@ This is the highest-priority external dependency for beta. See
 - [x] Restart Unbound only when generated content changes.
 - [x] Remove stale aliases on disconnect.
 - [x] Optional conditional forwarding through official domain overrides.
+- [x] Conditional-forwarding add/remove, manual-entry preservation and
+      model-unavailable cleanup verified with a local test resolver.
+- [ ] Verify conditional forwarding against a live Pangolin private resolver.
 - [x] Uninstall cleanup for plugin-owned domain-override UUIDs.
 - [x] Verify resolution and NXDOMAIN cleanup on OPNsense 26.7.
 - [x] Protect manual parent zones and wildcard entries from learned subdomains.

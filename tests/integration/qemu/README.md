@@ -123,6 +123,15 @@ discards model changes made by `serializeToConfig()`.
 - `dns-inspect-failure.sh` — temporarily removes the Unbound model class so the
   manual-entry inspection fails. Expected: source and chroot alias include are
   removed and Unbound is restarted.
+- `conditional.php`, `seed-forwarding.php`, `set-forwarding-status.php`,
+  `dns-test-server.py`, `disable-dnsbl.sh` and
+  `conditional-forwarding-test.sh` — conditional-forwarding fixture. It seeds
+  an existing plugin-owned dot and a manual dot, verifies add/remove and DNS
+  answers through a local test resolver, then removes the Unbound model class
+  and verifies direct cleanup, manual preservation and a real Unbound restart.
+  `disable-dnsbl.sh` is a test-VM-only workaround for the nano image's missing
+  dnsbl Python module and binds Unbound to `127.0.0.1` so the test resolver can
+  use `127.0.0.2:53`.
 - `sync-restart.sh` plus `change-dns-ttl.php` — unchanged `pangolin sync` keeps
   the agent PID; a DNS TTL change restarts it. This covers the DNS page path.
 
@@ -156,6 +165,14 @@ fetch -q -o /tmp/dns-conflict.php http://10.0.2.2:8000/tests/integration/qemu/dn
 
 fetch -q -o /tmp/dns-inspect-failure.sh http://10.0.2.2:8000/tests/integration/qemu/dns-inspect-failure.sh
 sh /tmp/dns-inspect-failure.sh
+
+fetch -q -o /tmp/disable-dnsbl.sh http://10.0.2.2:8000/tests/integration/qemu/disable-dnsbl.sh
+fetch -q -o /tmp/conditional.php http://10.0.2.2:8000/tests/integration/qemu/conditional.php
+fetch -q -o /tmp/seed-forwarding.php http://10.0.2.2:8000/tests/integration/qemu/seed-forwarding.php
+fetch -q -o /tmp/set-forwarding-status.php http://10.0.2.2:8000/tests/integration/qemu/set-forwarding-status.php
+fetch -q -o /tmp/dns-test-server.py http://10.0.2.2:8000/tests/integration/qemu/dns-test-server.py
+fetch -q -o /tmp/conditional-forwarding-test.sh http://10.0.2.2:8000/tests/integration/qemu/conditional-forwarding-test.sh
+sh /tmp/conditional-forwarding-test.sh
 
 fetch -q -o /tmp/manual-zone.php http://10.0.2.2:8000/tests/integration/qemu/manual-zone.php
 fetch -q -o /tmp/manual-zone-test.sh http://10.0.2.2:8000/tests/integration/qemu/manual-zone-test.sh

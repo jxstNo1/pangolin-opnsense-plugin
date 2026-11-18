@@ -293,11 +293,52 @@ func validateCIDRs(cidrs []string) error {
 		if ones < 8 {
 			return fmt.Errorf("%q is too broad; prefix must be between /8 and /32 (default routes are not allowed)", cidr)
 		}
+		if !isRoutableIPv4(ipNet.IP) {
+			return fmt.Errorf("%q is not a routable unicast IPv4 network", cidr)
+		}
 		if strings.ContainsAny(cidr, "\r\n") {
 			return fmt.Errorf("CIDR contains newline")
 		}
 	}
 	return nil
+}
+
+func isRoutableIPv4(ip net.IP) bool {
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return false
+	}
+	if ip4[0] == 0 || ip4[0] == 127 || ip4[0] >= 224 {
+		return false
+	}
+	if ip4[0] == 169 && ip4[1] == 254 {
+		return false
+	}
+	if ip4[0] == 192 && ip4[1] == 0 && ip4[2] == 0 {
+		/* 192.0.0.0/24 IETF protocol assignments */
+		return false
+	}
+	if ip4[0] == 192 && ip4[1] == 0 && ip4[2] == 2 {
+		/* 192.0.2.0/24 TEST-NET-1 */
+		return false
+	}
+	if ip4[0] == 192 && ip4[1] == 88 && ip4[2] == 99 {
+		/* 192.88.99.0/24 deprecated 6to4 relay anycast */
+		return false
+	}
+	if ip4[0] == 198 && (ip4[1] == 18 || ip4[1] == 19) {
+		/* 198.18.0.0/15 benchmarking */
+		return false
+	}
+	if ip4[0] == 198 && ip4[1] == 51 && ip4[2] == 100 {
+		/* 198.51.100.0/24 TEST-NET-2 */
+		return false
+	}
+	if ip4[0] == 203 && ip4[1] == 0 && ip4[2] == 113 {
+		/* 203.0.113.0/24 TEST-NET-3 */
+		return false
+	}
+	return true
 }
 
 type ifaceNetwork struct {

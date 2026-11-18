@@ -50,6 +50,8 @@ include live Pangolin secrets in a report; redact them.
 - **No default route.** The subnet router never installs `0.0.0.0/0`,
   `0.0.0.0/1` or `128.0.0.0/1`. Full tunnel/exit-node behavior is the machine
   client's own feature and is not enabled by the plugin's subnet router.
+  Standalone pf additionally drops learned loopback, link-local, multicast and
+  reserved IPv4 destinations.
 - **No all-VLAN exposure.** Local networks are an explicit allow-list. Prefixes
   shorter than /8, `0.0.0.0/0`, loopback, link-local, multicast and reserved
   networks are rejected in three places: XML model mask, PHP validator and Go
@@ -69,8 +71,9 @@ include live Pangolin secrets in a report; redact them.
   in `/var/db/pangolin/unbound-dots.json`. Manual host/alias entries, domain
   overrides and wildcard entries win; a manual parent zone protects all of its
   subdomains. If the manual-entry model cannot be inspected, the plugin removes
-  the alias include (source and chroot) and restarts Unbound; it never leaves
-  stale aliases published.
+  the alias include (source and chroot), removes only recorded plugin-owned
+  forwarding UUIDs directly from `config.xml` after checking the description
+  and domain marker, and restarts Unbound. Manual entries are never touched.
 - **Fail closed.** If CARP state cannot be read, the tunnel waits/stops. The
   plugin requires the status file's agent PID to be alive and the heartbeat to
   be recent; a live `daemon(8)` supervisor with a dead or stale child is treated

@@ -144,6 +144,7 @@ After `configctl filter reload` the anchors were unchanged.
 ### Unbound
 
 ```text
+server:
 # Managed by os-pangolin. Do not edit; changes are overwritten.
 # Alias records are learned from the running Pangolin machine client.
 local-data: "db.internal.example. 60 IN A 100.64.0.2"
@@ -159,9 +160,12 @@ new.internal.example.   60  IN A 100.64.0.9      (after DNS update)
 new.internal.example.  NXDOMAIN                  (after disconnect cleanup)
 ```
 
-Note: `unbound-checkconf` in this VM reports a pre-existing `pythonmod`
-`unbound-dnsbl` path error. Unbound itself is running and answers the queries
-above; the error is not produced by the plugin include.
+Note: the nano VM initially referenced a missing `unbound-dnsbl` Python
+module, which prevented Unbound from starting. The conditional-forwarding
+fixture (`disable-dnsbl.sh`) removes that module from the disposable VM's
+generated Unbound configuration and binds Unbound to `127.0.0.1` so the test
+resolver can use `127.0.0.2:53`. This is a test-VM workaround only; with it,
+`unbound-checkconf` reports no errors.
 
 ## Findings and fixes in this phase
 
@@ -201,11 +205,16 @@ They were fixed and re-tested on the same OPNsense 26.7 VM:
 | `pangolin sync` restarts only on config change | `unchanged sync kept agent pid 52537`; `changed config restarted agent pid 52537 -> 65926` |
 | Standalone pf route overlapping another local network | unit test: `10.0.0.0/8` and `192.168.1.0/24` pruned, only `10.20.0.0/16` remains |
 | Unbound inspection failure | `inspection failure removed source and chroot include: PASS` |
+| Conditional forwarding with existing entries | `conditional forwarding add/remove: PASS`; plugin dot added, old plugin dot removed, manual dot preserved |
+| Unbound model unavailable with forwarding entries | `model-unavailable forwarding cleanup: PASS`; plugin dot removed from `config.xml`, manual dot remained and resolved |
+| Unbound include + forward zones | `server:` header prevents parser leakage; `unbound-checkconf` no errors |
+| Standalone pf reserved destinations | unit test rejects loopback, link-local, multicast, `0/8`, `240/4`, TEST-NET and benchmarking ranges |
 
 The standalone pf backend is unit-tested for empty destinations, `/1`
-rejection, interface mapping and interface-bound filter rules; its data plane
-was not exercised on the OPNsense VM because OPNsense uses the PHP/pf anchor
-backend.
+rejection, interface mapping, interface-bound filter rules, local-interface
+overlap pruning and loopback/link-local/multicast/reserved destination
+rejection; its data plane was not exercised on the OPNsense VM because
+OPNsense uses the PHP/pf anchor backend.
 
 
 

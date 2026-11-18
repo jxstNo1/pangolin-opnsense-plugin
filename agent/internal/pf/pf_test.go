@@ -85,13 +85,25 @@ func TestValidateCIDRsRejectsDangerousValues(t *testing.T) {
 		"10.0.0.0/7",
 		"10.0.0.0/8\nnat on tun0",
 		"::/0",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"224.0.0.0/4",
+		"240.0.0.0/4",
+		"0.0.0.0/8",
+		"192.0.2.0/24",
+		"198.18.0.0/15",
+		"198.51.100.0/24",
+		"203.0.113.0/24",
+		"255.255.255.255/32",
 	} {
 		if err := validateCIDRs([]string{cidr}); err == nil {
 			t.Fatalf("expected %q to be rejected", cidr)
 		}
 	}
-	if err := validateCIDRs([]string{"10.0.0.0/24"}); err != nil {
-		t.Fatalf("valid CIDR rejected: %v", err)
+	for _, cidr := range []string{"10.0.0.0/24", "100.64.0.0/10", "172.16.0.0/12", "192.168.1.0/24", "8.8.8.0/24"} {
+		if err := validateCIDRs([]string{cidr}); err != nil {
+			t.Fatalf("valid CIDR %q rejected: %v", cidr, err)
+		}
 	}
 }
 

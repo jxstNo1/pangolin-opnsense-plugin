@@ -113,7 +113,9 @@ function pangolin_uninstall_do()
     }
     @unlink('/usr/local/etc/unbound.opnsense.d/os-pangolin.conf');
     pangolin_flush_firewall_anchors();
-    pangolin_restart_unbound();
+    if (!pangolin_restart_unbound()) {
+        syslog(LOG_ERR, 'pangolin: Unbound restart failed during uninstall cleanup');
+    }
     foreach (['client', 'site'] as $mode) {
         mwexecfb('/usr/local/etc/rc.d/pangolin_%s stop', [$mode]);
     }
@@ -210,6 +212,7 @@ function pangolin_dns_sync_do($verbose = false)
     $active = $mdl->dnsEnabled() && !empty($status['connected']);
 
     $lines = [
+        'server:',
         '# Managed by os-pangolin. Do not edit; changes are overwritten.',
         '# Alias records are learned from the running Pangolin machine client.',
     ];
@@ -235,7 +238,9 @@ function pangolin_dns_sync_do($verbose = false)
                 syslog(LOG_WARNING, 'pangolin: failed to remove conditional-forwarding entries: ' . $e->getMessage());
             }
             if ($removed || $domainChanged) {
-                pangolin_restart_unbound();
+                if (!pangolin_restart_unbound()) {
+                    syslog(LOG_ERR, 'pangolin: Unbound restart failed after forwarding cleanup');
+                }
             }
             service_log("DNS conflict inspection failed; alias include removed.\n", $verbose);
             return;
@@ -316,30 +321,61 @@ function pangolin_dns_sync_do($verbose = false)
 
     if ($changed) {
         syslog(LOG_NOTICE, 'pangolin: Unbound alias configuration changed, restarting Unbound');
-        pangolin_restart_unbound();
+        if (!pangolin_restart_unbound()) {
+            syslog(LOG_ERR, 'pangolin: Unbound restart failed after alias configuration change');
+        }
     }
     service_log("Unbound DNS sync " . ($changed ? "updated" : "unchanged") . ".\n", $verbose);
 }
 
-function pangolin_restart_unbound()
+function pangolin_restart_unbound(): bool
 {
     /* Never invoke pluginctl/configctl or unbound_service_stop() from inside a
      * configd hook: both make nested configd requests and deadlock while the
      * current action is still running. Kill PID 1:1 and let start.sh copy the
      * include and start Unbound. */
-    $pid = (int)trim((string)@file_get_contents('/var/run/unbound.pid'));
-    syslog(LOG_NOTICE, "pangolin: restarting Unbound (pid={$pid})");
-    if ($pid > 1) {
-        mwexecf('/bin/kill -TERM %s', [$pid]);
+    $pidfile = '/var/run/unbound.pid';
+    $oldPid = (int)trim((string)@file_get_contents($pidfile));
+    $templateOk = true;
+    $templateOutput = [];
+    $templateRc = 0;
+    @exec(
+        '/usr/local/opnsense/service/template_ctl.py ' . escapeshellarg('OPNsense/Unbound/*') . ' 2>&1',
+        $templateOutput,
+        $templateRc
+    );
+    if ($templateRc !== 0 || !in_array('templates...done', $templateOutput, true)) {
+        $templateOk = false;
+        syslog(
+            LOG_ERR,
+            sprintf(
+                'pangolin: Unbound template generation failed (rc=%d): %s',
+                $templateRc,
+                implode(' ', $templateOutput)
+            )
+        );
+    }
+    syslog(LOG_NOTICE, "pangolin: restarting Unbound (pid={$oldPid})");
+    if ($oldPid > 1) {
+        mwexecf('/bin/kill -TERM %s', [$oldPid]);
         for ($i = 0; $i < 25; $i++) {
-            if (!isvalidpid('/var/run/unbound.pid')) {
+            if (!isvalidpid($pidfile)) {
                 break;
             }
             usleep(200000);
         }
     }
     mwexecfb('/usr/local/opnsense/scripts/unbound/start.sh');
-    syslog(LOG_DEBUG, 'pangolin: Unbound start script invoked');
+    for ($i = 0; $i < 50; $i++) {
+        $newPid = (int)trim((string)@file_get_contents($pidfile));
+        if ($newPid > 1 && $newPid !== $oldPid && isvalidpid($pidfile)) {
+            syslog(LOG_NOTICE, "pangolin: Unbound restarted (pid={$newPid})");
+            return $templateOk;
+        }
+        usleep(200000);
+    }
+    syslog(LOG_ERR, 'pangolin: Unbound restart did not produce a new live PID');
+    return false;
 }
 
 function pangolin_sync_unbound_dots(Pangolin $mdl, array $status, bool $active): bool
@@ -371,7 +407,11 @@ function pangolin_sync_unbound_dots(Pangolin $mdl, array $status, bool $active):
     try {
         $unbound = new \OPNsense\Unbound\Unbound();
     } catch (\Throwable $e) {
-        return false;
+        /* The model class can be unavailable (repair, partial upgrade). The
+         * recorded UUIDs are still enough to remove only plugin-owned entries
+         * directly from config.xml, leaving manual entries untouched. */
+        syslog(LOG_WARNING, 'pangolin: Unbound model unavailable; using direct forwarding cleanup: ' . $e->getMessage());
+        return pangolin_remove_forwarding_dots_direct($stored, $stateFile);
     }
 
     /* Never add a forward zone that overlaps a manually managed one. */
@@ -396,14 +436,36 @@ function pangolin_sync_unbound_dots(Pangolin $mdl, array $status, bool $active):
     }
 
     $changed = false;
+    $failed = false;
     $newStored = [];
     foreach ($stored as $uuid => $domain) {
+        if (!is_string($uuid) || !is_string($domain)) {
+            continue;
+        }
         $node = $unbound->getNodeByReference('dots.dot.' . $uuid);
-        if ($node === null || !isset($desired[$domain])) {
-            if ($node !== null) {
+        if ($node === null) {
+            continue;
+        }
+        /* A stored UUID normally identifies our entry. Refuse to delete a
+         * foreign/manual entry if the description or domain does not match. */
+        if (!pangolin_unbound_dot_owned($node, $domain)) {
+            syslog(LOG_WARNING, "pangolin: refusing to remove foreign Unbound domain override {$domain} ({$uuid})");
+            continue;
+        }
+        if (!isset($desired[$domain])) {
+            try {
                 $unbound->dots->dot->del($uuid);
-                $changed = true;
+            } catch (\Throwable $e) {
+                syslog(LOG_ERR, "pangolin: delete Unbound domain override {$domain} ({$uuid}) failed: " . $e->getMessage());
+                $failed = true;
+                continue;
             }
+            if ($unbound->getNodeByReference('dots.dot.' . $uuid) !== null) {
+                syslog(LOG_ERR, "pangolin: failed to delete Unbound domain override {$domain} ({$uuid})");
+                $failed = true;
+                continue;
+            }
+            $changed = true;
             continue;
         }
         $node->enabled = '1';
@@ -436,22 +498,103 @@ function pangolin_sync_unbound_dots(Pangolin $mdl, array $status, bool $active):
         $changed = true;
     }
 
+    if ($failed) {
+        return false;
+    }
     if ($changed) {
-        $config = \OPNsense\Core\Config::getInstance();
-        $config->lock();
         try {
             $unbound->serializeToConfig();
-        } finally {
-            $config->unlock();
+            \OPNsense\Core\Config::getInstance()->save(
+                ['description' => 'os-pangolin conditional forwarding update']
+            );
+        } catch (\Throwable $e) {
+            syslog(LOG_ERR, 'pangolin: failed to save conditional forwarding entries: ' . $e->getMessage());
+            return false;
         }
     }
 
     $oldJson = is_file($stateFile) ? (string)file_get_contents($stateFile) : '';
     $newJson = json_encode($newStored, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     if ($oldJson !== $newJson) {
-        pangolin_write_atomic($stateFile, ($newJson === false ? '{}' : $newJson) . "\n", 0600);
+        if (!pangolin_write_atomic($stateFile, ($newJson === false ? '{}' : $newJson) . "\n", 0600)) {
+            syslog(LOG_ERR, 'pangolin: failed to update ' . $stateFile);
+        }
     }
     return $changed;
+}
+
+function pangolin_unbound_dot_owned($node, string $domain): bool
+{
+    $description = (string)$node->description;
+    $nodeDomain = strtolower(trim((string)$node->domain, '.'));
+    return str_starts_with($description, 'os-pangolin') &&
+        $nodeDomain === strtolower(trim($domain, '.'));
+}
+
+/**
+ * Remove recorded plugin-owned domain overrides without loading the Unbound
+ * model. Only UUIDs from our state file are considered, and the description
+ * and domain must still match our marker. Manual entries are never touched.
+ */
+function pangolin_remove_forwarding_dots_direct(array $stored, string $stateFile): bool
+{
+    if (empty($stored)) {
+        return false;
+    }
+    try {
+        $config = \OPNsense\Core\Config::getInstance();
+        $root = $config->object();
+    } catch (\Throwable $e) {
+        syslog(LOG_ERR, 'pangolin: cannot load config for forwarding cleanup: ' . $e->getMessage());
+        return false;
+    }
+
+    $removed = 0;
+    $failed = false;
+    foreach ($stored as $uuid => $domain) {
+        if (
+            !is_string($uuid) ||
+            !is_string($domain) ||
+            !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid)
+        ) {
+            continue;
+        }
+        $nodes = $root->xpath("//OPNsense/unboundplus/dots/dot[@uuid='" . $uuid . "']");
+        if (!is_array($nodes) || empty($nodes)) {
+            continue;
+        }
+        foreach ($nodes as $node) {
+            if (!pangolin_unbound_dot_owned($node, $domain)) {
+                syslog(LOG_WARNING, "pangolin: refusing to remove foreign Unbound domain override {$domain} ({$uuid})");
+                continue;
+            }
+            $dom = dom_import_simplexml($node);
+            if ($dom === false || $dom->parentNode === null) {
+                syslog(LOG_ERR, "pangolin: cannot remove Unbound domain override {$domain} ({$uuid})");
+                $failed = true;
+                continue;
+            }
+            $dom->parentNode->removeChild($dom);
+            $removed++;
+        }
+    }
+    if ($failed) {
+        return false;
+    }
+    if ($removed > 0) {
+        try {
+            $config->save(['description' => 'os-pangolin conditional forwarding cleanup']);
+        } catch (\Throwable $e) {
+            syslog(LOG_ERR, 'pangolin: failed to save forwarding cleanup: ' . $e->getMessage());
+            return false;
+        }
+    }
+    /* Desired is empty in the fallback path; drop all recorded UUIDs. Foreign
+     * manual entries were intentionally left in place. */
+    if (!pangolin_write_atomic($stateFile, "{}\n", 0600)) {
+        syslog(LOG_ERR, 'pangolin: failed to update ' . $stateFile);
+    }
+    return $removed > 0;
 }
 
 function pangolin_firewall_sync_do($verbose = false)
