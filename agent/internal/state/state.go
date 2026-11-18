@@ -55,17 +55,34 @@ type Status struct {
 
 // Store serialises writes for one agent process.
 type Store struct {
-	dir    string
-	mode   string
-	mu     sync.Mutex
-	status Status
+	dir     string
+	mode    string
+	dnsPath string
+	mu      sync.Mutex
+	status  Status
 }
 
 func New(dir, mode string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create state directory: %w", err)
 	}
-	return &Store{dir: dir, mode: mode}, nil
+	return &Store{
+		dir:     dir,
+		mode:    mode,
+		dnsPath: filepath.Join(dir, DefaultDNSOutput),
+	}, nil
+}
+
+const DefaultDNSOutput = "dns-records.json"
+
+// SetDNSRecordsPath overrides the DNS snapshot location. It must be called
+// before the status writer starts.
+func (s *Store) SetDNSRecordsPath(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if path != "" {
+		s.dnsPath = path
+	}
 }
 
 func (s *Store) StatusPath() string {
@@ -73,7 +90,9 @@ func (s *Store) StatusPath() string {
 }
 
 func (s *Store) DNSRecordsPath() string {
-	return filepath.Join(s.dir, "dns-records.json")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.dnsPath
 }
 
 func (s *Store) HealthPath() string {
@@ -183,7 +202,7 @@ func (s *Store) WriteDNSRecords(records []DNSEntry) error {
 	if err := s.writeStatusLocked(); err != nil {
 		return err
 	}
-	return writeAtomic(s.DNSRecordsPath(), records, 0o644)
+	return writeAtomic(s.dnsPath, records, 0o644)
 }
 
 func (s *Store) ReadDNSRecords() ([]DNSEntry, error) {

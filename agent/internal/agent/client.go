@@ -141,11 +141,12 @@ func RunClient(ctx context.Context, cfg *config.Config, store *state.Store, noti
 
 	go o.StartTunnel(tunnelCfg)
 
-	dnsPath := cfg.DNS.OutputFile
-	if dnsPath == "" {
-		dnsPath = store.DNSRecordsPath()
+	if cfg.DNS != nil && cfg.DNS.OutputFile != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.DNS.OutputFile), 0o755); err != nil {
+			return fmt.Errorf("create DNS snapshot directory: %w", err)
+		}
+		store.SetDNSRecordsPath(cfg.DNS.OutputFile)
 	}
-	_ = os.MkdirAll(filepath.Dir(dnsPath), 0o755)
 
 	var lastDNS []state.DNSEntry
 	var lastApplied bool

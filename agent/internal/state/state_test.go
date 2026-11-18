@@ -60,6 +60,23 @@ func TestDNSRecords(t *testing.T) {
 	}
 }
 
+func TestDNSRecordsCustomPath(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "client")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Init("test")
+	custom := filepath.Join(dir, "custom-dns.json")
+	s.SetDNSRecordsPath(custom)
+	if err := s.WriteDNSRecords([]DNSEntry{{Domain: "a.example.com", IP: "100.64.0.2", Type: "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(custom); err != nil {
+		t.Fatalf("custom DNS snapshot missing: %v", err)
+	}
+}
+
 func TestNoTempFilesLeft(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "site")
