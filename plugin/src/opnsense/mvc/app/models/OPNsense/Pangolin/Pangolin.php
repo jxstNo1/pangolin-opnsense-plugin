@@ -39,23 +39,28 @@ class Pangolin extends BaseModel
 
     public function isEnabled(): bool
     {
-        return (string)$this->general->enabled === '1' &&
+        return $this->masterEnabled() &&
             ((string)$this->client->enabled === '1' || (string)$this->site->enabled === '1');
+    }
+
+    private function masterEnabled(): bool
+    {
+        return (string)$this->general->enabled === '1';
     }
 
     public function clientEnabled(): bool
     {
-        return (string)$this->general->enabled === '1' && (string)$this->client->enabled === '1';
+        return $this->masterEnabled() && (string)$this->client->enabled === '1';
     }
 
     public function siteEnabled(): bool
     {
-        return (string)$this->general->enabled === '1' && (string)$this->site->enabled === '1';
+        return $this->masterEnabled() && (string)$this->site->enabled === '1';
     }
 
     public function dnsEnabled(): bool
     {
-        return (string)$this->dns->enabled === '1';
+        return $this->masterEnabled() && $this->clientEnabled() && (string)$this->dns->enabled === '1';
     }
 
     public function dnsIntervalSeconds(): int
@@ -67,12 +72,12 @@ class Pangolin extends BaseModel
 
     public function subnetRouterEnabled(): bool
     {
-        return (string)$this->subnetRouter->enabled === '1';
+        return $this->masterEnabled() && $this->clientEnabled() && (string)$this->subnetRouter->enabled === '1';
     }
 
     public function haEnabled(): bool
     {
-        return (string)$this->ha->enabled === '1';
+        return $this->masterEnabled() && (string)$this->ha->enabled === '1';
     }
 
     /**
@@ -81,6 +86,9 @@ class Pangolin extends BaseModel
      */
     public function validateSecurity(): void
     {
+        if (!$this->masterEnabled()) {
+            return;
+        }
         $errors = [];
         $allowHttp = (string)$this->advanced->allowInsecureHttp === '1';
 
