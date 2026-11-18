@@ -108,19 +108,13 @@ From the repository root, with pristine upstream trees at `_upstream/newt`
 and `_upstream/olm`:
 
 ```sh
-git diff --no-index \
-  --src-prefix=a/upstream/ --dst-prefix=b/vendor/ \
-  --output=patches/newt/0001-freebsd-network-support.patch \
-  _upstream/newt third_party/newt
-
-git diff --no-index \
-  --src-prefix=a/upstream/ --dst-prefix=b/vendor/ \
-  --output=patches/olm/0001-freebsd-support.patch \
-  _upstream/olm third_party/olm
+scripts/regen-patches.sh
 ```
 
-Apply with `git apply -p2` from a directory containing `newt/` and `olm/`
-trees. The patches include the new files and the small dispatch changes.
+The script copies both trees without `.git`, produces unified diffs with
+`a/newt/...` and `a/olm/...` paths, writes them under `patches/`, and can be
+checked with `git apply --check -p1` from a directory containing `newt/` and
+`olm/`.
 
 ## Build constraints
 
