@@ -101,7 +101,7 @@ The supported installation path is the OPNsense plugin package built from
 can be copied and extracted into `/usr/local`:
 
 ```sh
-fetch -o /tmp/os-pangolin.tgz https://example.invalid/os-pangolin-0.1.0-amd64.tgz
+fetch -o /tmp/os-pangolin.tgz http://<your-server>/os-pangolin-0.1.0-amd64.tgz
 tar -xzf /tmp/os-pangolin.tgz -C /tmp
 cp -R /tmp/os-pangolin-0.1.0-amd64/src/* /usr/local/
 chmod 755 /usr/local/sbin/pangolin-agent /usr/local/etc/rc.d/pangolin_*
