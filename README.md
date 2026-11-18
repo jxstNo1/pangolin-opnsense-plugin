@@ -107,6 +107,8 @@ cp -R /tmp/os-pangolin-0.1.0-amd64/src/* /usr/local/
 chmod 755 /usr/local/sbin/pangolin-agent /usr/local/etc/rc.d/pangolin_*
 chmod 700 /usr/local/etc/pangolin/hook.sh
 service configd restart
+rm -f /var/lib/php/tmp/opnsense_menu_cache.xml /var/lib/php/tmp/opnsense_acl_cache.json
+configctl webgui restart
 ```
 
 Then open **VPN → Pangolin**:
