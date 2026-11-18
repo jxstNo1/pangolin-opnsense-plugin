@@ -210,6 +210,10 @@ function pangolin_dns_sync_do($verbose = false)
     $seen = [];
     if ($active) {
         $conflicts = Pangolin::unboundConflicts($records);
+        if ($conflicts === null) {
+            syslog(LOG_ERR, 'pangolin: cannot inspect manual Unbound entries; refusing to publish aliases');
+            return;
+        }
         $blocked = [];
         foreach ($conflicts as $conflict) {
             $blocked[strtok($conflict, ' ')] = true;

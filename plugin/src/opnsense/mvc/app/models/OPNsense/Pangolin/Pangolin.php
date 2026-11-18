@@ -401,13 +401,13 @@ class Pangolin extends BaseModel
      * Return a human-readable list of conflicts with manually managed Unbound
      * entries. The plugin must never override or delete those entries.
      */
-    public static function unboundConflicts(array $records): array
+    public static function unboundConflicts(array $records): ?array
     {
         $conflicts = [];
         try {
             $unbound = new \OPNsense\Unbound\Unbound();
         } catch (\Throwable $e) {
-            return $conflicts;
+            return null;
         }
 
         $manual = [];
@@ -434,7 +434,7 @@ class Pangolin extends BaseModel
                 }
             }
         } catch (\Throwable $e) {
-            return $conflicts;
+            return null;
         }
 
         foreach ($records as $record) {

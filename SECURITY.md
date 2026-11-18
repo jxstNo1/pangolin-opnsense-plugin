@@ -61,7 +61,8 @@ include live Pangolin secrets in a report; redact them.
 - **No foreign Unbound changes.** Static aliases go into a dedicated
   `unbound.opnsense.d` include. Conditional forwarding uses only UUIDs recorded
   in `/var/db/pangolin/unbound-dots.json`. Manual host/alias/domain-override
-  entries are detected and win.
+  entries are detected and win. If the manual-entry model cannot be inspected,
+  DNS synchronisation refuses to publish aliases (fail closed).
 - **Fail closed.** If CARP state cannot be read, the tunnel waits/stops. If the
   agent PID is not alive, the plugin flushes the anchors and removes stale DNS.
   If the tunnel has no valid address/interface, no rules are generated.

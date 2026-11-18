@@ -13,7 +13,7 @@ class DnsController extends ApiControllerBase
         $records = Pangolin::dnsRecords();
         return [
             'records' => $records,
-            'conflicts' => Pangolin::unboundConflicts($records),
+            'conflicts' => Pangolin::unboundConflicts($records) ?? [],
             'include_exists' => is_file('/usr/local/etc/unbound.opnsense.d/os-pangolin.conf'),
         ];
     }
