@@ -176,6 +176,9 @@ disconnect cleanup it returned `NXDOMAIN`.
 - WireGuard handshake, ping, hole punching, relay fallback.
 - Live site resource exposure.
 - Live machine-client alias set and private HTTPS resource (TLS/SNI/Host).
+- Conditional forwarding against a live Pangolin private resolver; the model
+  manipulation/cleanup code was reviewed and linted, but no live resolver was
+  available.
 - LAN device → OPNsense → remote resource data plane with a real tunnel.
 - Two-node CARP failover.
 - IPv6.
