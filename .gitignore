@@ -1,0 +1,36 @@
+# Build artifacts
+/dist/
+/plugin.tgz
+/plugin/src/sbin/pangolin-agent
+*.pkg
+*.tgz
+*.tar.gz
+*.sha256
+
+# Upstream research clones (not part of the repository)
+/_upstream/
+
+# QEMU / OPNsense test images and disks
+*.qcow2
+*.img
+*.iso
+*.iso.bz2
+*.img.bz2
+/tests/integration/qemu/*.log
+/tests/integration/qemu/*.cmd
+
+# Go
+/agent/pangolin-agent
+/agent/*.exe
+/agent/coverage.out
+
+# Logs / temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/

@@ -1,0 +1,51 @@
+<form>
+    <field>
+        <type>header</type>
+        <label>General</label>
+    </field>
+    <field>
+        <id>pangolin.general.enabled</id>
+        <label>Enable plugin</label>
+        <type>checkbox</type>
+        <help>Show Pangolin service controls and activate boot-time reconciliation. The machine client and site connector are enabled independently on their own pages.</help>
+    </field>
+    <field>
+        <id>pangolin.general.logLevel</id>
+        <label>Log level</label>
+        <type>dropdown</type>
+    </field>
+    <field>
+        <type>header</type>
+        <label>High Availability</label>
+    </field>
+    <field>
+        <id>pangolin.ha.enabled</id>
+        <label>Enable CARP active/passive gate</label>
+        <type>checkbox</type>
+        <help>The agent starts only when the configured CARP interface is in the required state and stops the tunnel if the state changes. This prevents two firewalls from competing for the same Pangolin identity and duplicate routes/NAT.</help>
+    </field>
+    <field>
+        <id>pangolin.ha.interface</id>
+        <label>CARP interface</label>
+        <type>text</type>
+        <hint>em0</hint>
+        <help>Interface carrying the CARP VIP (for example em0, wan, lan or a physical interface name). State is read with ifconfig(8).</help>
+    </field>
+    <field>
+        <id>pangolin.ha.requiredState</id>
+        <label>Required state</label>
+        <type>dropdown</type>
+        <help>Usually MASTER on the primary node. Use BACKUP only for deliberately inverted failover layouts.</help>
+    </field>
+    <field>
+        <type>header</type>
+        <label>Advanced</label>
+    </field>
+    <field>
+        <id>pangolin.advanced.allowInsecureHttp</id>
+        <label>Allow plain HTTP endpoints</label>
+        <type>checkbox</type>
+        <advanced>true</advanced>
+        <help>DANGEROUS: sends the machine/site secret and session tokens without TLS. Only for isolated lab networks. The agent refuses http endpoints unless this is enabled.</help>
+    </field>
+</form>

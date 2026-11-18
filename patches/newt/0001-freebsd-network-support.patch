@@ -1,0 +1,1848 @@
+diff --git a/upstream/_upstream/newt/.git/FETCH_HEAD b/vendor/_upstream/newt/.git/FETCH_HEAD
+deleted file mode 100644
+index 36c27c4..0000000
+--- a/upstream/_upstream/newt/.git/FETCH_HEAD
++++ /dev/null
+@@ -1,2 +0,0 @@
+-80c9ce7050bad844bebe35ff9b0edc0c88ade9ac		tag 'v1.20.0' of https://github.com/fosrl/newt
+-4bb34ec421d0b9ff58f483210c72d62de3cdfe31	not-for-merge	tag '1.20.0' of https://github.com/fosrl/newt
+diff --git a/upstream/_upstream/newt/.git/HEAD b/vendor/_upstream/newt/.git/HEAD
+deleted file mode 100644
+index 98c03eb..0000000
+--- a/upstream/_upstream/newt/.git/HEAD
++++ /dev/null
+@@ -1 +0,0 @@
+-80c9ce7050bad844bebe35ff9b0edc0c88ade9ac
+diff --git a/upstream/_upstream/newt/.git/config b/vendor/_upstream/newt/.git/config
+deleted file mode 100644
+index c7b1cd6..0000000
+--- a/upstream/_upstream/newt/.git/config
++++ /dev/null
+@@ -1,13 +0,0 @@
+-[core]
+-	repositoryformatversion = 0
+-	filemode = false
+-	bare = false
+-	logallrefupdates = true
+-	symlinks = false
+-	ignorecase = true
+-[remote "origin"]
+-	url = https://github.com/fosrl/newt
+-	fetch = +refs/heads/main:refs/remotes/origin/main
+-[branch "main"]
+-	remote = origin
+-	merge = refs/heads/main
+diff --git a/upstream/_upstream/newt/.git/description b/vendor/_upstream/newt/.git/description
+deleted file mode 100644
+index 498b267..0000000
+--- a/upstream/_upstream/newt/.git/description
++++ /dev/null
+@@ -1 +0,0 @@
+-Unnamed repository; edit this file 'description' to name the repository.
+diff --git a/upstream/_upstream/newt/.git/hooks/applypatch-msg.sample b/vendor/_upstream/newt/.git/hooks/applypatch-msg.sample
+deleted file mode 100644
+index a5d7b84..0000000
+--- a/upstream/_upstream/newt/.git/hooks/applypatch-msg.sample
++++ /dev/null
+@@ -1,15 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to check the commit log message taken by
+-# applypatch from an e-mail message.
+-#
+-# The hook should exit with non-zero status after issuing an
+-# appropriate message if it wants to stop the commit.  The hook is
+-# allowed to edit the commit message file.
+-#
+-# To enable this hook, rename this file to "applypatch-msg".
+-
+-. git-sh-setup
+-commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
+-test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
+-:
+diff --git a/upstream/_upstream/newt/.git/hooks/commit-msg.sample b/vendor/_upstream/newt/.git/hooks/commit-msg.sample
+deleted file mode 100644
+index f7458ef..0000000
+--- a/upstream/_upstream/newt/.git/hooks/commit-msg.sample
++++ /dev/null
+@@ -1,74 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to check the commit log message.
+-# Called by "git commit" with one argument, the name of the file
+-# that has the commit message.  The hook should exit with non-zero
+-# status after issuing an appropriate message if it wants to stop the
+-# commit.  The hook is allowed to edit the commit message file.
+-#
+-# To enable this hook, rename this file to "commit-msg".
+-
+-# Uncomment the below to add a Signed-off-by line to the message.
+-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+-# hook is more suited to it.
+-#
+-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
+-
+-# This example catches duplicate Signed-off-by lines and messages that
+-# would confuse 'git am'.
+-
+-ret=0
+-
+-test "" = "$(grep '^Signed-off-by: ' "$1" |
+-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
+-	echo >&2 Duplicate Signed-off-by lines.
+-	ret=1
+-}
+-
+-comment_re="$(
+-	{
+-		git config --get-regexp "^core\.comment(char|string)\$" ||
+-			echo '#'
+-	} | sed -n -e '
+-		${
+-			s/^[^ ]* //
+-			s|[][*./\]|\\&|g
+-			s/^auto$/[#;@!$%^&|:]/
+-			p
+-		}'
+-)"
+-scissors_line="^${comment_re} -\{8,\} >8 -\{8,\}\$"
+-comment_line="^${comment_re}.*"
+-blank_line='^[ 	]*$'
+-# Disallow lines starting with "diff -" or "Index: " in the body of the
+-# message. Stop looking if we see a scissors line.
+-line="$(sed -n -e "
+-	# Skip comments and blank lines at the start of the file.
+-	/${scissors_line}/q
+-	/${comment_line}/d
+-	/${blank_line}/d
+-	# The first paragraph will become the subject header so
+-	# does not need to be checked.
+-	: subject
+-	n
+-	/${scissors_line}/q
+-	/${blank_line}/!b subject
+-	# Check the body of the message for problematic
+-	# prefixes.
+-	: body
+-	n
+-	/${scissors_line}/q
+-	/${comment_line}/b body
+-	/^diff -/{p;q;}
+-	/^Index: /{p;q;}
+-	b body
+-	" "$1")"
+-if test -n "$line"
+-then
+-	echo >&2 "Message contains a diff that will confuse 'git am'."
+-	echo >&2 "To fix this indent the diff."
+-	ret=1
+-fi
+-
+-exit $ret
+diff --git a/upstream/_upstream/newt/.git/hooks/fsmonitor-watchman.sample b/vendor/_upstream/newt/.git/hooks/fsmonitor-watchman.sample
+deleted file mode 100644
+index 429e0a5..0000000
+--- a/upstream/_upstream/newt/.git/hooks/fsmonitor-watchman.sample
++++ /dev/null
+@@ -1,168 +0,0 @@
+-#!/usr/bin/perl
+-
+-use strict;
+-use warnings;
+-use IPC::Open2;
+-
+-# An example hook script to integrate Watchman
+-# (https://facebook.github.io/watchman/) with git to speed up detecting
+-# new and modified files.
+-#
+-# The hook is passed a version (currently 2) and last update token
+-# formatted as a string and outputs to stdout a new update token and
+-# all files that have been modified since the update token. Paths must
+-# be relative to the root of the working tree and separated by a single NUL.
+-#
+-# To enable this hook, rename this file to "query-watchman" and set
+-# 'git config core.fsmonitor .git/hooks/query-watchman'
+-#
+-my ($version, $last_update_token) = @ARGV;
+-
+-# Uncomment for debugging
+-# print STDERR "$0 $version $last_update_token\n";
+-
+-# Check the hook interface version
+-if ($version ne 2) {
+-	die "Unsupported query-fsmonitor hook version '$version'.\n" .
+-	    "Falling back to scanning...\n";
+-}
+-
+-my $git_work_tree = get_working_dir();
+-
+-my $json_pkg;
+-eval {
+-	require JSON::XS;
+-	$json_pkg = "JSON::XS";
+-	1;
+-} or do {
+-	require JSON::PP;
+-	$json_pkg = "JSON::PP";
+-};
+-
+-launch_watchman();
+-
+-sub launch_watchman {
+-	my $o = watchman_query();
+-	if (is_work_tree_watched($o)) {
+-		output_result($o->{clock}, @{$o->{files}});
+-	}
+-}
+-
+-sub output_result {
+-	my ($clockid, @files) = @_;
+-
+-	# Uncomment for debugging watchman output
+-	# open (my $fh, ">", ".git/watchman-output.out");
+-	# binmode $fh, ":utf8";
+-	# print $fh "$clockid\n@files\n";
+-	# close $fh;
+-
+-	binmode STDOUT, ":utf8";
+-	print $clockid;
+-	print "\0";
+-	local $, = "\0";
+-	print @files;
+-}
+-
+-sub watchman_clock {
+-	my $response = qx/watchman clock "$git_work_tree"/;
+-	die "Failed to get clock id on '$git_work_tree'.\n" .
+-		"Falling back to scanning...\n" if $? != 0;
+-
+-	return $json_pkg->new->utf8->decode($response);
+-}
+-
+-sub watchman_query {
+-	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
+-	or die "open2() failed: $!\n" .
+-	"Falling back to scanning...\n";
+-
+-	# In the query expression below we're asking for names of files that
+-	# changed since $last_update_token but not from the .git folder.
+-	#
+-	# To accomplish this, we're using the "since" generator to use the
+-	# recency index to select candidate nodes and "fields" to limit the
+-	# output to file names only. Then we're using the "expression" term to
+-	# further constrain the results.
+-	my $last_update_line = "";
+-	if (substr($last_update_token, 0, 1) eq "c") {
+-		$last_update_token = "\"$last_update_token\"";
+-		$last_update_line = qq[\n"since": $last_update_token,];
+-	}
+-	my $query = <<"	END";
+-		["query", "$git_work_tree", {$last_update_line
+-			"fields": ["name"],
+-			"expression": ["not", ["dirname", ".git"]]
+-		}]
+-	END
+-
+-	# Uncomment for debugging the watchman query
+-	# open (my $fh, ">", ".git/watchman-query.json");
+-	# print $fh $query;
+-	# close $fh;
+-
+-	print CHLD_IN $query;
+-	close CHLD_IN;
+-	my $response = do {local $/; <CHLD_OUT>};
+-
+-	# Uncomment for debugging the watch response
+-	# open ($fh, ">", ".git/watchman-response.json");
+-	# print $fh $response;
+-	# close $fh;
+-
+-	die "Watchman: command returned no output.\n" .
+-	"Falling back to scanning...\n" if $response eq "";
+-	die "Watchman: command returned invalid output: $response\n" .
+-	"Falling back to scanning...\n" unless $response =~ /^\{/;
+-
+-	return $json_pkg->new->utf8->decode($response);
+-}
+-
+-sub is_work_tree_watched {
+-	my ($output) = @_;
+-	my $error = $output->{error};
+-	if ($error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
+-		my $response = qx/watchman watch "$git_work_tree"/;
+-		die "Failed to make watchman watch '$git_work_tree'.\n" .
+-		    "Falling back to scanning...\n" if $? != 0;
+-		$output = $json_pkg->new->utf8->decode($response);
+-		$error = $output->{error};
+-		die "Watchman: $error.\n" .
+-		"Falling back to scanning...\n" if $error;
+-
+-		# Uncomment for debugging watchman output
+-		# open (my $fh, ">", ".git/watchman-output.out");
+-		# close $fh;
+-
+-		# Watchman will always return all files on the first query so
+-		# return the fast "everything is dirty" flag to git and do the
+-		# Watchman query just to get it over with now so we won't pay
+-		# the cost in git to look up each individual file.
+-		my $o = watchman_clock();
+-		$error = $o->{error};
+-
+-		die "Watchman: $error.\n" .
+-		"Falling back to scanning...\n" if $error;
+-
+-		output_result($o->{clock}, ("/"));
+-		return 0;
+-	}
+-
+-	die "Watchman: $error.\n" .
+-	"Falling back to scanning...\n" if $error;
+-
+-	return 1;
+-}
+-
+-sub get_working_dir {
+-	my $working_dir;
+-	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
+-		$working_dir = Win32::GetCwd();
+-		$working_dir =~ tr/\\/\//;
+-	} else {
+-		require Cwd;
+-		$working_dir = Cwd::cwd();
+-	}
+-
+-	return $working_dir;
+-}
+diff --git a/upstream/_upstream/newt/.git/hooks/post-update.sample b/vendor/_upstream/newt/.git/hooks/post-update.sample
+deleted file mode 100644
+index ec17ec1..0000000
+--- a/upstream/_upstream/newt/.git/hooks/post-update.sample
++++ /dev/null
+@@ -1,8 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to prepare a packed repository for use over
+-# dumb transports.
+-#
+-# To enable this hook, rename this file to "post-update".
+-
+-exec git update-server-info
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-applypatch.sample b/vendor/_upstream/newt/.git/hooks/pre-applypatch.sample
+deleted file mode 100644
+index 4142082..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-applypatch.sample
++++ /dev/null
+@@ -1,14 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to verify what is about to be committed
+-# by applypatch from an e-mail message.
+-#
+-# The hook should exit with non-zero status after issuing an
+-# appropriate message if it wants to stop the commit.
+-#
+-# To enable this hook, rename this file to "pre-applypatch".
+-
+-. git-sh-setup
+-precommit="$(git rev-parse --git-path hooks/pre-commit)"
+-test -x "$precommit" && exec "$precommit" ${1+"$@"}
+-:
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-commit.sample b/vendor/_upstream/newt/.git/hooks/pre-commit.sample
+deleted file mode 100644
+index 29ed5ee..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-commit.sample
++++ /dev/null
+@@ -1,49 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to verify what is about to be committed.
+-# Called by "git commit" with no arguments.  The hook should
+-# exit with non-zero status after issuing an appropriate message if
+-# it wants to stop the commit.
+-#
+-# To enable this hook, rename this file to "pre-commit".
+-
+-if git rev-parse --verify HEAD >/dev/null 2>&1
+-then
+-	against=HEAD
+-else
+-	# Initial commit: diff against an empty tree object
+-	against=$(git hash-object -t tree /dev/null)
+-fi
+-
+-# If you want to allow non-ASCII filenames set this variable to true.
+-allownonascii=$(git config --type=bool hooks.allownonascii)
+-
+-# Redirect output to stderr.
+-exec 1>&2
+-
+-# Cross platform projects tend to avoid non-ASCII filenames; prevent
+-# them from being added to the repository. We exploit the fact that the
+-# printable range starts at the space character and ends with tilde.
+-if [ "$allownonascii" != "true" ] &&
+-	# Note that the use of brackets around a tr range is ok here, (it's
+-	# even required, for portability to Solaris 10's /usr/bin/tr), since
+-	# the square bracket bytes happen to fall in the designated range.
+-	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
+-	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+-then
+-	cat <<\EOF
+-Error: Attempt to add a non-ASCII file name.
+-
+-This can cause problems if you want to work with people on other platforms.
+-
+-To be portable it is advisable to rename the file.
+-
+-If you know what you are doing you can disable this check using:
+-
+-  git config hooks.allownonascii true
+-EOF
+-	exit 1
+-fi
+-
+-# If there are whitespace errors, print the offending file names and fail.
+-exec git diff-index --check --cached $against --
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-merge-commit.sample b/vendor/_upstream/newt/.git/hooks/pre-merge-commit.sample
+deleted file mode 100644
+index 399eab1..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-merge-commit.sample
++++ /dev/null
+@@ -1,13 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to verify what is about to be committed.
+-# Called by "git merge" with no arguments.  The hook should
+-# exit with non-zero status after issuing an appropriate message to
+-# stderr if it wants to stop the merge commit.
+-#
+-# To enable this hook, rename this file to "pre-merge-commit".
+-
+-. git-sh-setup
+-test -x "$GIT_DIR/hooks/pre-commit" &&
+-        exec "$GIT_DIR/hooks/pre-commit"
+-:
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-push.sample b/vendor/_upstream/newt/.git/hooks/pre-push.sample
+deleted file mode 100644
+index 4ce688d..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-push.sample
++++ /dev/null
+@@ -1,53 +0,0 @@
+-#!/bin/sh
+-
+-# An example hook script to verify what is about to be pushed.  Called by "git
+-# push" after it has checked the remote status, but before anything has been
+-# pushed.  If this script exits with a non-zero status nothing will be pushed.
+-#
+-# This hook is called with the following parameters:
+-#
+-# $1 -- Name of the remote to which the push is being done
+-# $2 -- URL to which the push is being done
+-#
+-# If pushing without using a named remote those arguments will be equal.
+-#
+-# Information about the commits which are being pushed is supplied as lines to
+-# the standard input in the form:
+-#
+-#   <local ref> <local oid> <remote ref> <remote oid>
+-#
+-# This sample shows how to prevent push of commits where the log message starts
+-# with "WIP" (work in progress).
+-
+-remote="$1"
+-url="$2"
+-
+-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+-
+-while read local_ref local_oid remote_ref remote_oid
+-do
+-	if test "$local_oid" = "$zero"
+-	then
+-		# Handle delete
+-		:
+-	else
+-		if test "$remote_oid" = "$zero"
+-		then
+-			# New branch, examine all commits
+-			range="$local_oid"
+-		else
+-			# Update to existing branch, examine new commits
+-			range="$remote_oid..$local_oid"
+-		fi
+-
+-		# Check for WIP commit
+-		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
+-		if test -n "$commit"
+-		then
+-			echo >&2 "Found WIP commit in $local_ref, not pushing"
+-			exit 1
+-		fi
+-	fi
+-done
+-
+-exit 0
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-rebase.sample b/vendor/_upstream/newt/.git/hooks/pre-rebase.sample
+deleted file mode 100644
+index 6cbef5c..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-rebase.sample
++++ /dev/null
+@@ -1,169 +0,0 @@
+-#!/bin/sh
+-#
+-# Copyright (c) 2006, 2008 Junio C Hamano
+-#
+-# The "pre-rebase" hook is run just before "git rebase" starts doing
+-# its job, and can prevent the command from running by exiting with
+-# non-zero status.
+-#
+-# The hook is called with the following parameters:
+-#
+-# $1 -- the upstream the series was forked from.
+-# $2 -- the branch being rebased (or empty when rebasing the current branch).
+-#
+-# This sample shows how to prevent topic branches that are already
+-# merged to 'next' branch from getting rebased, because allowing it
+-# would result in rebasing already published history.
+-
+-publish=next
+-basebranch="$1"
+-if test "$#" = 2
+-then
+-	topic="refs/heads/$2"
+-else
+-	topic=`git symbolic-ref HEAD` ||
+-	exit 0 ;# we do not interrupt rebasing detached HEAD
+-fi
+-
+-case "$topic" in
+-refs/heads/??/*)
+-	;;
+-*)
+-	exit 0 ;# we do not interrupt others.
+-	;;
+-esac
+-
+-# Now we are dealing with a topic branch being rebased
+-# on top of master.  Is it OK to rebase it?
+-
+-# Does the topic really exist?
+-git show-ref -q "$topic" || {
+-	echo >&2 "No such branch $topic"
+-	exit 1
+-}
+-
+-# Is topic fully merged to master?
+-not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
+-if test -z "$not_in_master"
+-then
+-	echo >&2 "$topic is fully merged to master; better remove it."
+-	exit 1 ;# we could allow it, but there is no point.
+-fi
+-
+-# Is topic ever merged to next?  If so you should not be rebasing it.
+-only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
+-only_next_2=`git rev-list ^master           ${publish} | sort`
+-if test "$only_next_1" = "$only_next_2"
+-then
+-	not_in_topic=`git rev-list "^$topic" master`
+-	if test -z "$not_in_topic"
+-	then
+-		echo >&2 "$topic is already up to date with master"
+-		exit 1 ;# we could allow it, but there is no point.
+-	else
+-		exit 0
+-	fi
+-else
+-	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
+-	/usr/bin/perl -e '
+-		my $topic = $ARGV[0];
+-		my $msg = "* $topic has commits already merged to public branch:\n";
+-		my (%not_in_next) = map {
+-			/^([0-9a-f]+) /;
+-			($1 => 1);
+-		} split(/\n/, $ARGV[1]);
+-		for my $elem (map {
+-				/^([0-9a-f]+) (.*)$/;
+-				[$1 => $2];
+-			} split(/\n/, $ARGV[2])) {
+-			if (!exists $not_in_next{$elem->[0]}) {
+-				if ($msg) {
+-					print STDERR $msg;
+-					undef $msg;
+-				}
+-				print STDERR " $elem->[1]\n";
+-			}
+-		}
+-	' "$topic" "$not_in_next" "$not_in_master"
+-	exit 1
+-fi
+-
+-<<\DOC_END
+-
+-This sample hook safeguards topic branches that have been
+-published from being rewound.
+-
+-The workflow assumed here is:
+-
+- * Once a topic branch forks from "master", "master" is never
+-   merged into it again (either directly or indirectly).
+-
+- * Once a topic branch is fully cooked and merged into "master",
+-   it is deleted.  If you need to build on top of it to correct
+-   earlier mistakes, a new topic branch is created by forking at
+-   the tip of the "master".  This is not strictly necessary, but
+-   it makes it easier to keep your history simple.
+-
+- * Whenever you need to test or publish your changes to topic
+-   branches, merge them into "next" branch.
+-
+-The script, being an example, hardcodes the publish branch name
+-to be "next", but it is trivial to make it configurable via
+-$GIT_DIR/config mechanism.
+-
+-With this workflow, you would want to know:
+-
+-(1) ... if a topic branch has ever been merged to "next".  Young
+-    topic branches can have stupid mistakes you would rather
+-    clean up before publishing, and things that have not been
+-    merged into other branches can be easily rebased without
+-    affecting other people.  But once it is published, you would
+-    not want to rewind it.
+-
+-(2) ... if a topic branch has been fully merged to "master".
+-    Then you can delete it.  More importantly, you should not
+-    build on top of it -- other people may already want to
+-    change things related to the topic as patches against your
+-    "master", so if you need further changes, it is better to
+-    fork the topic (perhaps with the same name) afresh from the
+-    tip of "master".
+-
+-Let's look at this example:
+-
+-		   o---o---o---o---o---o---o---o---o---o "next"
+-		  /       /           /           /
+-		 /   a---a---b A     /           /
+-		/   /               /           /
+-	       /   /   c---c---c---c B         /
+-	      /   /   /             \         /
+-	     /   /   /   b---b C     \       /
+-	    /   /   /   /             \     /
+-    ---o---o---o---o---o---o---o---o---o---o---o "master"
+-
+-
+-A, B and C are topic branches.
+-
+- * A has one fix since it was merged up to "next".
+-
+- * B has finished.  It has been fully merged up to "master" and "next",
+-   and is ready to be deleted.
+-
+- * C has not merged to "next" at all.
+-
+-We would want to allow C to be rebased, refuse A, and encourage
+-B to be deleted.
+-
+-To compute (1):
+-
+-	git rev-list ^master ^topic next
+-	git rev-list ^master        next
+-
+-	if these match, topic has not merged in next at all.
+-
+-To compute (2):
+-
+-	git rev-list master..topic
+-
+-	if this is empty, it is fully merged to "master".
+-
+-DOC_END
+diff --git a/upstream/_upstream/newt/.git/hooks/pre-receive.sample b/vendor/_upstream/newt/.git/hooks/pre-receive.sample
+deleted file mode 100644
+index a1fd29e..0000000
+--- a/upstream/_upstream/newt/.git/hooks/pre-receive.sample
++++ /dev/null
+@@ -1,24 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to make use of push options.
+-# The example simply echoes all push options that start with 'echoback='
+-# and rejects all pushes when the "reject" push option is used.
+-#
+-# To enable this hook, rename this file to "pre-receive".
+-
+-if test -n "$GIT_PUSH_OPTION_COUNT"
+-then
+-	i=0
+-	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
+-	do
+-		eval "value=\$GIT_PUSH_OPTION_$i"
+-		case "$value" in
+-		echoback=*)
+-			echo "echo from the pre-receive-hook: ${value#*=}" >&2
+-			;;
+-		reject)
+-			exit 1
+-		esac
+-		i=$((i + 1))
+-	done
+-fi
+diff --git a/upstream/_upstream/newt/.git/hooks/prepare-commit-msg.sample b/vendor/_upstream/newt/.git/hooks/prepare-commit-msg.sample
+deleted file mode 100644
+index 10fa14c..0000000
+--- a/upstream/_upstream/newt/.git/hooks/prepare-commit-msg.sample
++++ /dev/null
+@@ -1,42 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to prepare the commit log message.
+-# Called by "git commit" with the name of the file that has the
+-# commit message, followed by the description of the commit
+-# message's source.  The hook's purpose is to edit the commit
+-# message file.  If the hook fails with a non-zero status,
+-# the commit is aborted.
+-#
+-# To enable this hook, rename this file to "prepare-commit-msg".
+-
+-# This hook includes three examples. The first one removes the
+-# "# Please enter the commit message..." help message.
+-#
+-# The second includes the output of "git diff --name-status -r"
+-# into the message, just before the "git status" output.  It is
+-# commented because it doesn't cope with --amend or with squashed
+-# commits.
+-#
+-# The third example adds a Signed-off-by line to the message, that can
+-# still be edited.  This is rarely a good idea.
+-
+-COMMIT_MSG_FILE=$1
+-COMMIT_SOURCE=$2
+-SHA1=$3
+-
+-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
+-
+-# case "$COMMIT_SOURCE,$SHA1" in
+-#  ,|template,)
+-#    /usr/bin/perl -i.bak -pe '
+-#       print "\n" . `git diff --cached --name-status -r`
+-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
+-#  *) ;;
+-# esac
+-
+-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
+-# if test -z "$COMMIT_SOURCE"
+-# then
+-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
+-# fi
+diff --git a/upstream/_upstream/newt/.git/hooks/push-to-checkout.sample b/vendor/_upstream/newt/.git/hooks/push-to-checkout.sample
+deleted file mode 100644
+index af5a0c0..0000000
+--- a/upstream/_upstream/newt/.git/hooks/push-to-checkout.sample
++++ /dev/null
+@@ -1,78 +0,0 @@
+-#!/bin/sh
+-
+-# An example hook script to update a checked-out tree on a git push.
+-#
+-# This hook is invoked by git-receive-pack(1) when it reacts to git
+-# push and updates reference(s) in its repository, and when the push
+-# tries to update the branch that is currently checked out and the
+-# receive.denyCurrentBranch configuration variable is set to
+-# updateInstead.
+-#
+-# By default, such a push is refused if the working tree and the index
+-# of the remote repository has any difference from the currently
+-# checked out commit; when both the working tree and the index match
+-# the current commit, they are updated to match the newly pushed tip
+-# of the branch. This hook is to be used to override the default
+-# behaviour; however the code below reimplements the default behaviour
+-# as a starting point for convenient modification.
+-#
+-# The hook receives the commit with which the tip of the current
+-# branch is going to be updated:
+-commit=$1
+-
+-# It can exit with a non-zero status to refuse the push (when it does
+-# so, it must not modify the index or the working tree).
+-die () {
+-	echo >&2 "$*"
+-	exit 1
+-}
+-
+-# Or it can make any necessary changes to the working tree and to the
+-# index to bring them to the desired state when the tip of the current
+-# branch is updated to the new commit, and exit with a zero status.
+-#
+-# For example, the hook can simply run git read-tree -u -m HEAD "$1"
+-# in order to emulate git fetch that is run in the reverse direction
+-# with git push, as the two-tree form of git read-tree -u -m is
+-# essentially the same as git switch or git checkout that switches
+-# branches while keeping the local changes in the working tree that do
+-# not interfere with the difference between the branches.
+-
+-# The below is a more-or-less exact translation to shell of the C code
+-# for the default behaviour for git's push-to-checkout hook defined in
+-# the push_to_deploy() function in builtin/receive-pack.c.
+-#
+-# Note that the hook will be executed from the repository directory,
+-# not from the working tree, so if you want to perform operations on
+-# the working tree, you will have to adapt your code accordingly, e.g.
+-# by adding "cd .." or using relative paths.
+-
+-if ! git update-index -q --ignore-submodules --refresh
+-then
+-	die "Up-to-date check failed"
+-fi
+-
+-if ! git diff-files --quiet --ignore-submodules --
+-then
+-	die "Working directory has unstaged changes"
+-fi
+-
+-# This is a rough translation of:
+-#
+-#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
+-if git cat-file -e HEAD 2>/dev/null
+-then
+-	head=HEAD
+-else
+-	head=$(git hash-object -t tree --stdin </dev/null)
+-fi
+-
+-if ! git diff-index --quiet --cached --ignore-submodules $head --
+-then
+-	die "Working directory has staged changes"
+-fi
+-
+-if ! git read-tree -u -m "$commit"
+-then
+-	die "Could not update working tree to new HEAD"
+-fi
+diff --git a/upstream/_upstream/newt/.git/hooks/sendemail-validate.sample b/vendor/_upstream/newt/.git/hooks/sendemail-validate.sample
+deleted file mode 100644
+index 640bcf8..0000000
+--- a/upstream/_upstream/newt/.git/hooks/sendemail-validate.sample
++++ /dev/null
+@@ -1,77 +0,0 @@
+-#!/bin/sh
+-
+-# An example hook script to validate a patch (and/or patch series) before
+-# sending it via email.
+-#
+-# The hook should exit with non-zero status after issuing an appropriate
+-# message if it wants to prevent the email(s) from being sent.
+-#
+-# To enable this hook, rename this file to "sendemail-validate".
+-#
+-# By default, it will only check that the patch(es) can be applied on top of
+-# the default upstream branch without conflicts in a secondary worktree. After
+-# validation (successful or not) of the last patch of a series, the worktree
+-# will be deleted.
+-#
+-# The following config variables can be set to change the default remote and
+-# remote ref that are used to apply the patches against:
+-#
+-#   sendemail.validateRemote (default: origin)
+-#   sendemail.validateRemoteRef (default: HEAD)
+-#
+-# Replace the TODO placeholders with appropriate checks according to your
+-# needs.
+-
+-validate_cover_letter () {
+-	file="$1"
+-	# TODO: Replace with appropriate checks (e.g. spell checking).
+-	true
+-}
+-
+-validate_patch () {
+-	file="$1"
+-	# Ensure that the patch applies without conflicts.
+-	git am -3 "$file" || return
+-	# TODO: Replace with appropriate checks for this patch
+-	# (e.g. checkpatch.pl).
+-	true
+-}
+-
+-validate_series () {
+-	# TODO: Replace with appropriate checks for the whole series
+-	# (e.g. quick build, coding style checks, etc.).
+-	true
+-}
+-
+-# main -------------------------------------------------------------------------
+-
+-if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
+-then
+-	remote=$(git config --default origin --get sendemail.validateRemote) &&
+-	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
+-	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
+-	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
+-	git config --replace-all sendemail.validateWorktree "$worktree"
+-else
+-	worktree=$(git config --get sendemail.validateWorktree)
+-fi || {
+-	echo "sendemail-validate: error: failed to prepare worktree" >&2
+-	exit 1
+-}
+-
+-unset GIT_DIR GIT_WORK_TREE
+-cd "$worktree" &&
+-
+-if grep -q "^diff --git " "$1"
+-then
+-	validate_patch "$1"
+-else
+-	validate_cover_letter "$1"
+-fi &&
+-
+-if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
+-then
+-	git config --unset-all sendemail.validateWorktree &&
+-	trap 'git worktree remove -ff "$worktree"' EXIT &&
+-	validate_series
+-fi
+diff --git a/upstream/_upstream/newt/.git/hooks/update.sample b/vendor/_upstream/newt/.git/hooks/update.sample
+deleted file mode 100644
+index c4d426b..0000000
+--- a/upstream/_upstream/newt/.git/hooks/update.sample
++++ /dev/null
+@@ -1,128 +0,0 @@
+-#!/bin/sh
+-#
+-# An example hook script to block unannotated tags from entering.
+-# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
+-#
+-# To enable this hook, rename this file to "update".
+-#
+-# Config
+-# ------
+-# hooks.allowunannotated
+-#   This boolean sets whether unannotated tags will be allowed into the
+-#   repository.  By default they won't be.
+-# hooks.allowdeletetag
+-#   This boolean sets whether deleting tags will be allowed in the
+-#   repository.  By default they won't be.
+-# hooks.allowmodifytag
+-#   This boolean sets whether a tag may be modified after creation. By default
+-#   it won't be.
+-# hooks.allowdeletebranch
+-#   This boolean sets whether deleting branches will be allowed in the
+-#   repository.  By default they won't be.
+-# hooks.denycreatebranch
+-#   This boolean sets whether remotely creating branches will be denied
+-#   in the repository.  By default this is allowed.
+-#
+-
+-# --- Command line
+-refname="$1"
+-oldrev="$2"
+-newrev="$3"
+-
+-# --- Safety check
+-if [ -z "$GIT_DIR" ]; then
+-	echo "Don't run this script from the command line." >&2
+-	echo " (if you want, you could supply GIT_DIR then run" >&2
+-	echo "  $0 <ref> <oldrev> <newrev>)" >&2
+-	exit 1
+-fi
+-
+-if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
+-	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
+-	exit 1
+-fi
+-
+-# --- Config
+-allowunannotated=$(git config --type=bool hooks.allowunannotated)
+-allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
+-denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
+-allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
+-allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
+-
+-# check for no description
+-projectdesc=$(sed -e '1q' "$GIT_DIR/description")
+-case "$projectdesc" in
+-"Unnamed repository"* | "")
+-	echo "*** Project description file hasn't been set" >&2
+-	exit 1
+-	;;
+-esac
+-
+-# --- Check types
+-# if $newrev is 0000...0000, it's a commit to delete a ref.
+-zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+-if [ "$newrev" = "$zero" ]; then
+-	newrev_type=delete
+-else
+-	newrev_type=$(git cat-file -t $newrev)
+-fi
+-
+-case "$refname","$newrev_type" in
+-	refs/tags/*,commit)
+-		# un-annotated tag
+-		short_refname=${refname##refs/tags/}
+-		if [ "$allowunannotated" != "true" ]; then
+-			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
+-			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
+-			exit 1
+-		fi
+-		;;
+-	refs/tags/*,delete)
+-		# delete tag
+-		if [ "$allowdeletetag" != "true" ]; then
+-			echo "*** Deleting a tag is not allowed in this repository" >&2
+-			exit 1
+-		fi
+-		;;
+-	refs/tags/*,tag)
+-		# annotated tag
+-		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
+-		then
+-			echo "*** Tag '$refname' already exists." >&2
+-			echo "*** Modifying a tag is not allowed in this repository." >&2
+-			exit 1
+-		fi
+-		;;
+-	refs/heads/*,commit)
+-		# branch
+-		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
+-			echo "*** Creating a branch is not allowed in this repository" >&2
+-			exit 1
+-		fi
+-		;;
+-	refs/heads/*,delete)
+-		# delete branch
+-		if [ "$allowdeletebranch" != "true" ]; then
+-			echo "*** Deleting a branch is not allowed in this repository" >&2
+-			exit 1
+-		fi
+-		;;
+-	refs/remotes/*,commit)
+-		# tracking branch
+-		;;
+-	refs/remotes/*,delete)
+-		# delete tracking branch
+-		if [ "$allowdeletebranch" != "true" ]; then
+-			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
+-			exit 1
+-		fi
+-		;;
+-	*)
+-		# Anything else (is there anything else?)
+-		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
+-		exit 1
+-		;;
+-esac
+-
+-# --- Finished
+-exit 0
+diff --git a/upstream/_upstream/newt/.git/index b/vendor/_upstream/newt/.git/index
+deleted file mode 100644
+index 2ab8923..0000000
+Binary files a/upstream/_upstream/newt/.git/index and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/info/exclude b/vendor/_upstream/newt/.git/info/exclude
+deleted file mode 100644
+index a5196d1..0000000
+--- a/upstream/_upstream/newt/.git/info/exclude
++++ /dev/null
+@@ -1,6 +0,0 @@
+-# git ls-files --others --exclude-from=.git/info/exclude
+-# Lines that start with '#' are comments.
+-# For a project mostly in C, the following would be a good set of
+-# exclude patterns (uncomment them if you want to use them):
+-# *.[oa]
+-# *~
+diff --git a/upstream/_upstream/newt/.git/logs/HEAD b/vendor/_upstream/newt/.git/logs/HEAD
+deleted file mode 100644
+index 97a661e..0000000
+--- a/upstream/_upstream/newt/.git/logs/HEAD
++++ /dev/null
+@@ -1,2 +0,0 @@
+-0000000000000000000000000000000000000000 0cba18a965fcf359fda429ca210ee65831d4f65c unknown <Olof@OlofPC.(none)> 1794956090 +0100	clone: from https://github.com/fosrl/newt
+-0cba18a965fcf359fda429ca210ee65831d4f65c 80c9ce7050bad844bebe35ff9b0edc0c88ade9ac unknown <Olof@OlofPC.(none)> 1794956639 +0100	checkout: moving from main to v1.20.0
+diff --git a/upstream/_upstream/newt/.git/logs/refs/heads/main b/vendor/_upstream/newt/.git/logs/refs/heads/main
+deleted file mode 100644
+index d837356..0000000
+--- a/upstream/_upstream/newt/.git/logs/refs/heads/main
++++ /dev/null
+@@ -1 +0,0 @@
+-0000000000000000000000000000000000000000 0cba18a965fcf359fda429ca210ee65831d4f65c unknown <Olof@OlofPC.(none)> 1794956090 +0100	clone: from https://github.com/fosrl/newt
+diff --git a/upstream/_upstream/newt/.git/logs/refs/remotes/origin/HEAD b/vendor/_upstream/newt/.git/logs/refs/remotes/origin/HEAD
+deleted file mode 100644
+index d837356..0000000
+--- a/upstream/_upstream/newt/.git/logs/refs/remotes/origin/HEAD
++++ /dev/null
+@@ -1 +0,0 @@
+-0000000000000000000000000000000000000000 0cba18a965fcf359fda429ca210ee65831d4f65c unknown <Olof@OlofPC.(none)> 1794956090 +0100	clone: from https://github.com/fosrl/newt
+diff --git a/upstream/_upstream/newt/.git/objects/11/10ffd2e02fe205d79810ceab56be8e4d78dc1a b/vendor/_upstream/newt/.git/objects/11/10ffd2e02fe205d79810ceab56be8e4d78dc1a
+deleted file mode 100644
+index ba152a2..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/11/10ffd2e02fe205d79810ceab56be8e4d78dc1a and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/4b/b34ec421d0b9ff58f483210c72d62de3cdfe31 b/vendor/_upstream/newt/.git/objects/4b/b34ec421d0b9ff58f483210c72d62de3cdfe31
+deleted file mode 100644
+index 930571d..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/4b/b34ec421d0b9ff58f483210c72d62de3cdfe31 and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/4b/e3531fe568d92184a8f5f24ff751677705bfb1 b/vendor/_upstream/newt/.git/objects/4b/e3531fe568d92184a8f5f24ff751677705bfb1
+deleted file mode 100644
+index eeb85cb..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/4b/e3531fe568d92184a8f5f24ff751677705bfb1 and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/80/c9ce7050bad844bebe35ff9b0edc0c88ade9ac b/vendor/_upstream/newt/.git/objects/80/c9ce7050bad844bebe35ff9b0edc0c88ade9ac
+deleted file mode 100644
+index 352f514..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/80/c9ce7050bad844bebe35ff9b0edc0c88ade9ac and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/91/10807fdc4502a45f17acfe7666066e8415a63b b/vendor/_upstream/newt/.git/objects/91/10807fdc4502a45f17acfe7666066e8415a63b
+deleted file mode 100644
+index 6c3177d..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/91/10807fdc4502a45f17acfe7666066e8415a63b and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/9d/d9d9efa7aad5feb2465d68c3b46a0986ba1ce8 b/vendor/_upstream/newt/.git/objects/9d/d9d9efa7aad5feb2465d68c3b46a0986ba1ce8
+deleted file mode 100644
+index 24a4313..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/9d/d9d9efa7aad5feb2465d68c3b46a0986ba1ce8 and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/a5/f6dd0f4b87a2e431158f346ada09b2413c10e0 b/vendor/_upstream/newt/.git/objects/a5/f6dd0f4b87a2e431158f346ada09b2413c10e0
+deleted file mode 100644
+index 5a50ef6..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/a5/f6dd0f4b87a2e431158f346ada09b2413c10e0 and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/da/cc83c2d1533cd82e85265afd084ebb4832571a b/vendor/_upstream/newt/.git/objects/da/cc83c2d1533cd82e85265afd084ebb4832571a
+deleted file mode 100644
+index fc229bd..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/da/cc83c2d1533cd82e85265afd084ebb4832571a and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/dd/d05490c285390958197e7360b5d5c1fa506ade b/vendor/_upstream/newt/.git/objects/dd/d05490c285390958197e7360b5d5c1fa506ade
+deleted file mode 100644
+index 374ef88..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/dd/d05490c285390958197e7360b5d5c1fa506ade and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/fb/3441868f08ca0afdf09df1f628f27700ee7f5b b/vendor/_upstream/newt/.git/objects/fb/3441868f08ca0afdf09df1f628f27700ee7f5b
+deleted file mode 100644
+index 117f430..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/fb/3441868f08ca0afdf09df1f628f27700ee7f5b and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.idx b/vendor/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.idx
+deleted file mode 100644
+index 80e0ca5..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.idx and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.pack b/vendor/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.pack
+deleted file mode 100644
+index 42e96be..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.pack and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.rev b/vendor/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.rev
+deleted file mode 100644
+index c4a1381..0000000
+Binary files a/upstream/_upstream/newt/.git/objects/pack/pack-30d8c6c9bd21446793657ad27fb0f5ed33c85c35.rev and /dev/null differ
+diff --git a/upstream/_upstream/newt/.git/packed-refs b/vendor/_upstream/newt/.git/packed-refs
+deleted file mode 100644
+index 6bd6178..0000000
+--- a/upstream/_upstream/newt/.git/packed-refs
++++ /dev/null
+@@ -1,2 +0,0 @@
+-# pack-refs with: peeled fully-peeled sorted 
+-0cba18a965fcf359fda429ca210ee65831d4f65c refs/remotes/origin/main
+diff --git a/upstream/_upstream/newt/.git/refs/heads/main b/vendor/_upstream/newt/.git/refs/heads/main
+deleted file mode 100644
+index 1d80b7f..0000000
+--- a/upstream/_upstream/newt/.git/refs/heads/main
++++ /dev/null
+@@ -1 +0,0 @@
+-0cba18a965fcf359fda429ca210ee65831d4f65c
+diff --git a/upstream/_upstream/newt/.git/refs/remotes/origin/HEAD b/vendor/_upstream/newt/.git/refs/remotes/origin/HEAD
+deleted file mode 100644
+index 4b0a875..0000000
+--- a/upstream/_upstream/newt/.git/refs/remotes/origin/HEAD
++++ /dev/null
+@@ -1 +0,0 @@
+-ref: refs/remotes/origin/main
+diff --git a/upstream/_upstream/newt/.git/refs/tags/1.20.0 b/vendor/_upstream/newt/.git/refs/tags/1.20.0
+deleted file mode 100644
+index 905ca03..0000000
+--- a/upstream/_upstream/newt/.git/refs/tags/1.20.0
++++ /dev/null
+@@ -1 +0,0 @@
+-4bb34ec421d0b9ff58f483210c72d62de3cdfe31
+diff --git a/upstream/_upstream/newt/.git/refs/tags/v1.20.0 b/vendor/_upstream/newt/.git/refs/tags/v1.20.0
+deleted file mode 100644
+index 98c03eb..0000000
+--- a/upstream/_upstream/newt/.git/refs/tags/v1.20.0
++++ /dev/null
+@@ -1 +0,0 @@
+-80c9ce7050bad844bebe35ff9b0edc0c88ade9ac
+diff --git a/upstream/_upstream/newt/.git/shallow b/vendor/_upstream/newt/.git/shallow
+deleted file mode 100644
+index 9ac9908..0000000
+--- a/upstream/_upstream/newt/.git/shallow
++++ /dev/null
+@@ -1,2 +0,0 @@
+-0cba18a965fcf359fda429ca210ee65831d4f65c
+-80c9ce7050bad844bebe35ff9b0edc0c88ade9ac
+diff --git a/upstream/third_party/newt/network/freebsd_stub.go b/vendor/third_party/newt/network/freebsd_stub.go
+new file mode 100644
+index 0000000..8d6096f
+--- /dev/null
++++ b/vendor/third_party/newt/network/freebsd_stub.go
+@@ -0,0 +1,45 @@
++//go:build !freebsd
++
++package network
++
++import (
++	"fmt"
++	"net"
++)
++
++// Stubs keep the network package buildable on the development host and on
++// non-FreeBSD targets. They are never reached at runtime on those platforms
++// because the dispatch switches only select the freebsd cases when
++// runtime.GOOS == "freebsd".
++
++func configureFreeBSD(interfaceName string, ip net.IP, ipNet *net.IPNet, mtu int) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func addFreeBSDAddress(interfaceName string, ip net.IP, ipNet *net.IPNet) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func removeFreeBSDAddress(interfaceName string, ip net.IP, ipNet *net.IPNet) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func FreeBSDAddRouteWithSource(destination, gateway, interfaceName, sourceIP string) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func FreeBSDRemoveRoute(destination, interfaceName string) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func FreeBSDAddBypassRoute(destIP string, tunnelInterface string) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func freebsdEnsureBypassRoute(destIP string, tunnelInterface string) (bool, error) {
++	return false, fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
++
++func FreeBSDRemoveBypassRoute(destIP string) error {
++	return fmt.Errorf("FreeBSD network backend is not available on this platform")
++}
+diff --git a/upstream/_upstream/newt/network/interface.go b/vendor/third_party/newt/network/interface.go
+index 72af5f4..289ae1b 100644
+--- a/upstream/_upstream/newt/network/interface.go
++++ b/vendor/third_party/newt/network/interface.go
+@@ -42,6 +42,8 @@ func ConfigureInterface(interfaceName string, tunnelIp string, mtu int) error {
+ 		return configureLinux(interfaceName, ip, ipNet)
+ 	case "darwin":
+ 		return configureDarwin(interfaceName, ip, ipNet)
++	case "freebsd":
++		return configureFreeBSD(interfaceName, ip, ipNet, mtu)
+ 	case "windows":
+ 		return configureWindows(interfaceName, ip, ipNet)
+ 	case "android":
+@@ -197,6 +199,8 @@ func AddSecondaryAddress(interfaceName string, addr string) error {
+ 		return configureLinux(interfaceName, ip, ipNet)
+ 	case "darwin":
+ 		return configureDarwin(interfaceName, ip, ipNet)
++	case "freebsd":
++		return addFreeBSDAddress(interfaceName, ip, ipNet)
+ 	case "windows":
+ 		return configureWindows(interfaceName, ip, ipNet)
+ 	default:
+@@ -224,6 +228,8 @@ func RemoveSecondaryAddress(interfaceName string, addr string) error {
+ 		return removeLinuxAddress(interfaceName, ip, ipNet)
+ 	case "darwin":
+ 		return removeDarwinAddress(interfaceName, ip, ipNet)
++	case "freebsd":
++		return removeFreeBSDAddress(interfaceName, ip, ipNet)
+ 	case "windows":
+ 		return removeWindowsAddress(interfaceName, ip, ipNet)
+ 	default:
+diff --git a/upstream/third_party/newt/network/interface_freebsd.go b/vendor/third_party/newt/network/interface_freebsd.go
+new file mode 100644
+index 0000000..cf668db
+--- /dev/null
++++ b/vendor/third_party/newt/network/interface_freebsd.go
+@@ -0,0 +1,164 @@
++//go:build freebsd
++
++package network
++
++import (
++	"encoding/binary"
++	"fmt"
++	"net"
++	"unsafe"
++
++	"github.com/fosrl/newt/logger"
++	"golang.org/x/sys/unix"
++)
++
++// ifaliasreq mirrors FreeBSD's struct ifaliasreq from <net/if.h>. The
++// structure is used with SIOCAIFADDR/SIOCDIFADDR to add and remove IPv4
++// addresses without invoking ifconfig(8).
++type ifaliasreq struct {
++	Name      [unix.IFNAMSIZ]byte
++	Addr      unix.RawSockaddrInet4
++	BroadAddr unix.RawSockaddrInet4
++	Mask      unix.RawSockaddrInet4
++}
++
++// ifreq is large enough to hold FreeBSD's struct ifreq (IFNAMSIZ bytes of
++// name followed by a 16-byte union).
++type ifreq [32]byte
++
++// configureFreeBSD assigns the tunnel address, brings the interface up and
++// applies the MTU. wireguard-go's FreeBSD TUN driver creates a point-to-point
++// interface, so the peer/destination address is set to the local address; this
++// is the same convention used by ifconfig(8) for tun(4).
++func configureFreeBSD(interfaceName string, ip net.IP, ipNet *net.IPNet, mtu int) error {
++	if NativeConfigDisabled {
++		return nil
++	}
++	if interfaceName == "" {
++		return fmt.Errorf("freebsd: interface name is required")
++	}
++
++	if err := addFreeBSDAddress(interfaceName, ip, ipNet); err != nil {
++		return fmt.Errorf("freebsd: assign address on %s: %w", interfaceName, err)
++	}
++	if err := setFreeBSDFlags(interfaceName, unix.IFF_UP); err != nil {
++		return fmt.Errorf("freebsd: bring %s up: %w", interfaceName, err)
++	}
++	if mtu > 0 {
++		if err := setFreeBSDMTU(interfaceName, mtu); err != nil {
++			return fmt.Errorf("freebsd: set MTU on %s: %w", interfaceName, err)
++		}
++	}
++	logger.Info("Configured FreeBSD interface %s with %s (MTU %d)", interfaceName, ipNet.String(), mtu)
++	return nil
++}
++
++// addFreeBSDAddress is used both for the primary address (configureFreeBSD)
++// and for secondary addresses on an existing tunnel interface.
++func addFreeBSDAddress(interfaceName string, ip net.IP, ipNet *net.IPNet) error {
++	req, err := newIfAliasReq(interfaceName, ip, ipNet)
++	if err != nil {
++		return err
++	}
++	return ioctlIfalias(unix.SIOCAIFADDR, req)
++}
++
++func removeFreeBSDAddress(interfaceName string, ip net.IP, ipNet *net.IPNet) error {
++	req, err := newIfAliasReq(interfaceName, ip, ipNet)
++	if err != nil {
++		return err
++	}
++	return ioctlIfalias(unix.SIOCDIFADDR, req)
++}
++
++func newIfAliasReq(interfaceName string, ip net.IP, ipNet *net.IPNet) (*ifaliasreq, error) {
++	if len(interfaceName) >= unix.IFNAMSIZ {
++		return nil, fmt.Errorf("interface name %q is too long", interfaceName)
++	}
++	ip4 := ip.To4()
++	if ip4 == nil {
++		return nil, fmt.Errorf("freebsd IPv4 backend only supports IPv4 addresses, got %s", ip)
++	}
++	ones, bits := ipNet.Mask.Size()
++	if bits != 32 {
++		return nil, fmt.Errorf("invalid IPv4 mask for %s", ipNet.String())
++	}
++
++	req := &ifaliasreq{}
++	copy(req.Name[:], interfaceName)
++
++	req.Addr = unix.RawSockaddrInet4{Len: unix.SizeofSockaddrInet4, Family: unix.AF_INET}
++	copy(req.Addr.Addr[:], ip4)
++	// Point-to-point peer address. tun(4) uses the same address on both ends.
++	req.BroadAddr = req.Addr
++
++	var mask [4]byte
++	binary.BigEndian.PutUint32(mask[:], uint32(0xffffffff)<<uint(32-ones))
++	req.Mask = unix.RawSockaddrInet4{Len: unix.SizeofSockaddrInet4, Family: unix.AF_INET}
++	copy(req.Mask.Addr[:], mask[:])
++	return req, nil
++}
++
++func ioctlIfalias(request uint, req *ifaliasreq) error {
++	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
++	if err != nil {
++		return err
++	}
++	defer unix.Close(fd)
++
++	if err := ioctlPtr(fd, request, unsafe.Pointer(req)); err != nil {
++		return err
++	}
++	return nil
++}
++
++func setFreeBSDFlags(interfaceName string, add int16) error {
++	req, err := newIfreq(interfaceName)
++	if err != nil {
++		return err
++	}
++	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
++	if err != nil {
++		return err
++	}
++	defer unix.Close(fd)
++
++	if err := ioctlPtr(fd, unix.SIOCGIFFLAGS, unsafe.Pointer(&req[0])); err != nil {
++		return err
++	}
++	flags := *(*int16)(unsafe.Pointer(&req[16]))
++	*(*int16)(unsafe.Pointer(&req[16])) = flags | add
++	return ioctlPtr(fd, unix.SIOCSIFFLAGS, unsafe.Pointer(&req[0]))
++}
++
++func setFreeBSDMTU(interfaceName string, mtu int) error {
++	req, err := newIfreq(interfaceName)
++	if err != nil {
++		return err
++	}
++	*(*int32)(unsafe.Pointer(&req[16])) = int32(mtu)
++
++	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
++	if err != nil {
++		return err
++	}
++	defer unix.Close(fd)
++	return ioctlPtr(fd, unix.SIOCSIFMTU, unsafe.Pointer(&req[0]))
++}
++
++func newIfreq(interfaceName string) (ifreq, error) {
++	var req ifreq
++	if len(interfaceName) >= unix.IFNAMSIZ {
++		return req, fmt.Errorf("interface name %q is too long", interfaceName)
++	}
++	copy(req[:unix.IFNAMSIZ], interfaceName)
++	return req, nil
++}
++
++func ioctlPtr(fd int, request uint, arg unsafe.Pointer) error {
++	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(request), uintptr(arg))
++	if errno != 0 {
++		return errno
++	}
++	return nil
++}
+diff --git a/upstream/_upstream/newt/network/route.go b/vendor/third_party/newt/network/route.go
+index 80da7c6..5daec22 100644
+--- a/upstream/_upstream/newt/network/route.go
++++ b/vendor/third_party/newt/network/route.go
+@@ -600,6 +600,8 @@ func AddBypassRouteForDestination(destIP string, tunnelInterface string) error {
+ 		return LinuxAddBypassRoute(destIP, tunnelInterface)
+ 	case "darwin":
+ 		return DarwinAddBypassRoute(destIP, tunnelInterface)
++	case "freebsd":
++		return FreeBSDAddBypassRoute(destIP, tunnelInterface)
+ 	case "windows":
+ 		return WindowsAddBypassRoute(destIP, tunnelInterface)
+ 	}
+@@ -625,6 +627,8 @@ func ReconcileBypassRoute(destIP string, tunnelInterface string) (bool, error) {
+ 		return linuxEnsureBypassRoute(destIP, tunnelInterface)
+ 	case "darwin":
+ 		return darwinEnsureBypassRoute(destIP, tunnelInterface)
++	case "freebsd":
++		return freebsdEnsureBypassRoute(destIP, tunnelInterface)
+ 	case "windows":
+ 		return windowsEnsureBypassRoute(destIP, tunnelInterface)
+ 	}
+@@ -636,7 +640,7 @@ func ReconcileBypassRoute(destIP string, tunnelInterface string) (bool, error) {
+ // NetworkSettings for a mobile/NetworkExtension host app to apply.
+ func ManagesHostRoutes() bool {
+ 	switch runtime.GOOS {
+-	case "linux", "windows":
++	case "linux", "windows", "freebsd":
+ 		return true
+ 	case "darwin":
+ 		return !NativeConfigDisabled
+@@ -653,6 +657,8 @@ func RemoveBypassRouteForDestination(destIP string) error {
+ 		return LinuxRemoveBypassRoute(destIP)
+ 	case "darwin":
+ 		return DarwinRemoveBypassRoute(destIP)
++	case "freebsd":
++		return FreeBSDRemoveBypassRoute(destIP)
+ 	case "windows":
+ 		return WindowsRemoveBypassRoute(destIP)
+ 	}
+@@ -686,6 +692,9 @@ func AddRouteForServerIPWithSource(serverIP, interfaceName string, sourceIP stri
+ 	if runtime.GOOS == "darwin" { // macos requires routes for each peer to be added but this messes with other platforms
+ 		return DarwinAddRouteWithSource(serverIP, "", interfaceName, sourceIP)
+ 	}
++	if runtime.GOOS == "freebsd" { // FreeBSD needs an explicit route for exit-node/server addresses too
++		return FreeBSDAddRouteWithSource(serverIP, "", interfaceName, sourceIP)
++	}
+ 	// else if runtime.GOOS == "windows" {
+ 	//	return WindowsAddRoute(serverIP, "", interfaceName)
+ 	// } else if runtime.GOOS == "linux" {
+@@ -716,6 +725,9 @@ func RemoveRouteForServerIPWithSource(serverIP string, interfaceName string, sou
+ 	if runtime.GOOS == "darwin" { // macos requires routes for each peer to be added but this messes with other platforms
+ 		return DarwinRemoveRoute(serverIP)
+ 	}
++	if runtime.GOOS == "freebsd" {
++		return FreeBSDRemoveRoute(serverIP, interfaceName)
++	}
+ 	// else if runtime.GOOS == "windows" {
+ 	// 	return WindowsRemoveRoute(serverIP, interfaceName)
+ 	// } else if runtime.GOOS == "linux" {
+@@ -817,6 +829,10 @@ func AddRoutesWithSource(remoteSubnets []string, interfaceName string, sourceIP
+ 			if err := DarwinAddRouteWithSource(subnet, "", interfaceName, sourceIP); err != nil {
+ 				logger.Error("Failed to add Darwin route for subnet %s: %v", subnet, err)
+ 			}
++		case "freebsd":
++			if err := FreeBSDAddRouteWithSource(subnet, "", interfaceName, sourceIP); err != nil {
++				logger.Error("Failed to add FreeBSD route for subnet %s: %v", subnet, err)
++			}
+ 		case "windows":
+ 			if err := WindowsAddRoute(subnet, "", interfaceName); err != nil {
+ 				logger.Error("Failed to add Windows route for subnet %s: %v", subnet, err)
+@@ -862,6 +878,10 @@ func RemoveRoutes(remoteSubnets []string, interfaceName string) error {
+ 			if err := DarwinRemoveRoute(subnet); err != nil {
+ 				logger.Error("Failed to remove Darwin route for subnet %s: %v", subnet, err)
+ 			}
++		case "freebsd":
++			if err := FreeBSDRemoveRoute(subnet, interfaceName); err != nil {
++				logger.Error("Failed to remove FreeBSD route for subnet %s: %v", subnet, err)
++			}
+ 		case "windows":
+ 			if err := WindowsRemoveRoute(subnet, interfaceName); err != nil {
+ 				logger.Error("Failed to remove Windows route for subnet %s: %v", subnet, err)
+diff --git a/upstream/third_party/newt/network/route_freebsd.go b/vendor/third_party/newt/network/route_freebsd.go
+new file mode 100644
+index 0000000..e77aa16
+--- /dev/null
++++ b/vendor/third_party/newt/network/route_freebsd.go
+@@ -0,0 +1,324 @@
++//go:build freebsd
++
++package network
++
++import (
++	"fmt"
++	"net"
++	"os/exec"
++	"strings"
++	"sync"
++
++	"github.com/fosrl/newt/logger"
++)
++
++// FreeBSD route management uses route(8) with an explicit argument vector.
++// No shell is involved, every argument is validated as an address/CIDR or
++// interface name before it reaches exec, and add operations refuse to replace
++// a route that already points somewhere else. This keeps the backend from
++// silently changing the default route or hijacking an operator-managed route.
++// Interface addresses are configured through ioctl(2) in interface_freebsd.go.
++
++const freeBSDRouteBinary = "/sbin/route"
++
++var (
++	freeBSDBypassMu    sync.Mutex
++	freeBSDBypassOwned = make(map[string]bool)
++)
++
++// FreeBSDAddRouteWithSource adds a route for destination via gateway or
++// interfaceName. sourceIP, when non-empty, is passed to route(8) -ifa so the
++// kernel prefers it as the source address (needed when the interface carries
++// both a site and an exit-node address).
++func FreeBSDAddRouteWithSource(destination, gateway, interfaceName, sourceIP string) error {
++	ip, ipNet, isHost, err := parseFreeBSDRouteDestination(destination)
++	if err != nil {
++		return err
++	}
++	if gateway == "" && interfaceName == "" {
++		return fmt.Errorf("either gateway or interface must be specified")
++	}
++	if gateway != "" && net.ParseIP(gateway) == nil {
++		return fmt.Errorf("invalid gateway address: %s", gateway)
++	}
++	if sourceIP != "" && net.ParseIP(sourceIP) == nil {
++		return fmt.Errorf("invalid source address: %s", sourceIP)
++	}
++
++	// Refuse to replace an existing route to the same destination that is not
++	// ours. route(8) would otherwise return "File exists", but checking first
++	// lets us report the conflicting interface/gateway and makes reconciliation
++	// idempotent across reconnects.
++	if current, err := freeBSDRouteGet(destination); err == nil {
++		if freeBSDRouteMatches(current, gateway, interfaceName) {
++			logger.Debug("FreeBSD route to %s already present via %s", destination, current.iface)
++			return nil
++		}
++		return fmt.Errorf(
++			"route to %s already exists via %s (gateway %s); refusing to replace it",
++			destination, current.iface, current.gateway,
++		)
++	}
++
++	args := []string{"-n", "add"}
++	if isHost {
++		args = append(args, "-host", ip.String())
++	} else {
++		args = append(args, "-net", ipNet.String())
++	}
++	if gateway != "" {
++		args = append(args, gateway)
++	} else {
++		args = append(args, "-interface", interfaceName)
++	}
++	if sourceIP != "" {
++		args = append(args, "-ifa", sourceIP)
++	}
++
++	out, err := exec.Command(freeBSDRouteBinary, args...).CombinedOutput()
++	if err != nil {
++		// A concurrent add (another reconnect) can race the check above.
++		if current, getErr := freeBSDRouteGet(destination); getErr == nil &&
++			freeBSDRouteMatches(current, gateway, interfaceName) {
++			return nil
++		}
++		return fmt.Errorf("route add %s failed: %v, output: %s", destination, err, strings.TrimSpace(string(out)))
++	}
++	logger.Info("Added FreeBSD route to %s via %s", destination, firstNonEmpty(gateway, interfaceName))
++	return nil
++}
++
++func FreeBSDRemoveRoute(destination, interfaceName string) error {
++	current, err := freeBSDRouteGet(destination)
++	if err != nil {
++		// Already gone. Route cleanup must be idempotent.
++		return nil
++	}
++	if interfaceName != "" && current.iface != interfaceName {
++		// Never delete a route that belongs to a different interface.
++		return nil
++	}
++
++	_, ipNet, isHost, err := parseFreeBSDRouteDestination(destination)
++	if err != nil {
++		return err
++	}
++	args := []string{"-n", "delete"}
++	if isHost {
++		args = append(args, "-host", ipNet.IP.String())
++	} else {
++		args = append(args, "-net", ipNet.String())
++	}
++	out, err := exec.Command(freeBSDRouteBinary, args...).CombinedOutput()
++	if err != nil {
++		if _, getErr := freeBSDRouteGet(destination); getErr != nil {
++			return nil
++		}
++		return fmt.Errorf("route delete %s failed: %v, output: %s", destination, err, strings.TrimSpace(string(out)))
++	}
++	logger.Info("Removed FreeBSD route to %s", destination)
++	return nil
++}
++
++// FreeBSDAddBypassRoute installs a /32 host route for destIP via the current
++// physical path. See AddBypassRouteForDestination in route.go for why this is
++// required before a full-tunnel/default-route-equivalent is installed.
++func FreeBSDAddBypassRoute(destIP string, tunnelInterface string) error {
++	_, err := freebsdEnsureBypassRoute(destIP, tunnelInterface)
++	return err
++}
++
++func freebsdEnsureBypassRoute(destIP string, tunnelInterface string) (bool, error) {
++	ip := net.ParseIP(destIP).To4()
++	if ip == nil {
++		return false, fmt.Errorf("invalid IPv4 destination address: %s", destIP)
++	}
++	host := ip.String()
++
++	current, err := freeBSDRouteGet(host)
++	if err != nil {
++		return false, fmt.Errorf("%w: %s", ErrNoPhysicalRoute, host)
++	}
++
++	// If the current path is already a static host route, it has been pinned
++	// (possibly by us) and must be left alone.
++	if isFreeBSDHostRoute(current) {
++		freeBSDBypassMu.Lock()
++		owned := freeBSDBypassOwned[host]
++		freeBSDBypassMu.Unlock()
++		if owned {
++			return false, nil
++		}
++		// An operator-managed host route exists; do not replace it. It already
++		// protects the destination from a broader tunnel route.
++		return false, nil
++	}
++
++	if tunnelInterface != "" && current.iface == tunnelInterface {
++		// The gateway route is already installed and capturing destIP. Use the
++		// untouched physical default route instead.
++		def, defErr := freeBSDRouteGet("default")
++		if defErr != nil || def.iface == "" || def.iface == tunnelInterface {
++			return false, fmt.Errorf("%w: %s", ErrNoPhysicalRoute, host)
++		}
++		current = def
++	}
++
++	var args []string
++	args = append(args, "-n", "add", "-host", host)
++	if gw := net.ParseIP(current.gateway); gw != nil {
++		args = append(args, gw.String())
++	} else if current.iface != "" {
++		args = append(args, "-interface", current.iface)
++	} else {
++		return false, fmt.Errorf("%w: no gateway or interface for %s", ErrNoPhysicalRoute, host)
++	}
++
++	out, err := exec.Command(freeBSDRouteBinary, args...).CombinedOutput()
++	if err != nil {
++		// If a host route appeared in the meantime, it is doing the job.
++		if after, getErr := freeBSDRouteGet(host); getErr == nil && isFreeBSDHostRoute(after) {
++			return false, nil
++		}
++		return false, fmt.Errorf("failed to add bypass route to %s: %v, output: %s", host, err, strings.TrimSpace(string(out)))
++	}
++	freeBSDBypassMu.Lock()
++	freeBSDBypassOwned[host] = true
++	freeBSDBypassMu.Unlock()
++	logger.Info("Added FreeBSD bypass route to %s via %s", host, firstNonEmpty(current.gateway, current.iface))
++	return true, nil
++}
++
++func FreeBSDRemoveBypassRoute(destIP string) error {
++	ip := net.ParseIP(destIP).To4()
++	if ip == nil {
++		return fmt.Errorf("invalid IPv4 destination address: %s", destIP)
++	}
++	host := ip.String()
++
++	freeBSDBypassMu.Lock()
++	owned := freeBSDBypassOwned[host]
++	delete(freeBSDBypassOwned, host)
++	freeBSDBypassMu.Unlock()
++	if !owned {
++		return nil
++	}
++	return FreeBSDRemoveRoute(host, "")
++}
++
++type freeBSDRoute struct {
++	destination string
++	mask        string
++	gateway     string
++	iface       string
++	flags       []string
++}
++
++func (r freeBSDRoute) hasFlag(flag string) bool {
++	for _, f := range r.flags {
++		if f == flag {
++			return true
++		}
++	}
++	return false
++}
++
++func isFreeBSDHostRoute(r freeBSDRoute) bool {
++	return r.mask == "255.255.255.255" || r.hasFlag("HOST")
++}
++
++// freeBSDRouteMatches reports whether the route is the one we would add.
++func freeBSDRouteMatches(r freeBSDRoute, gateway, interfaceName string) bool {
++	if interfaceName != "" && r.iface == interfaceName {
++		return true
++	}
++	if gateway != "" && r.gateway == gateway {
++		return true
++	}
++	return false
++}
++
++// freeBSDRouteGet parses route(8) get output for a destination or "default".
++func freeBSDRouteGet(destination string) (freeBSDRoute, error) {
++	if err := validateFreeBSDRouteLookupTarget(destination); err != nil {
++		return freeBSDRoute{}, err
++	}
++	args := []string{"-n", "get"}
++	if destination != "default" {
++		args = append(args, "-inet")
++	}
++	args = append(args, destination)
++
++	out, err := exec.Command(freeBSDRouteBinary, args...).CombinedOutput()
++	if err != nil {
++		return freeBSDRoute{}, fmt.Errorf("route get %s failed: %v, output: %s", destination, err, strings.TrimSpace(string(out)))
++	}
++
++	var r freeBSDRoute
++	for _, line := range strings.Split(string(out), "\n") {
++		key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
++		if !ok {
++			continue
++		}
++		value = strings.TrimSpace(value)
++		switch strings.ToLower(key) {
++		case "destination":
++			r.destination = value
++		case "mask":
++			r.mask = value
++		case "gateway":
++			r.gateway = value
++		case "interface":
++			r.iface = value
++		case "flags":
++			r.flags = strings.Split(strings.Trim(value, "<>"), ",")
++		}
++	}
++	if r.iface == "" && r.gateway == "" {
++		return freeBSDRoute{}, fmt.Errorf("could not parse route get output for %s: %s", destination, out)
++	}
++	return r, nil
++}
++
++// parseFreeBSDRouteDestination validates a CIDR (or bare IP) and returns the
++// host address, normalized network and whether this is a host route.
++func parseFreeBSDRouteDestination(destination string) (net.IP, *net.IPNet, bool, error) {
++	destination = strings.TrimSpace(destination)
++	if destination == "" {
++		return nil, nil, false, fmt.Errorf("empty destination")
++	}
++	if !strings.Contains(destination, "/") {
++		destination += "/32"
++	}
++	ip, ipNet, err := net.ParseCIDR(destination)
++	if err != nil {
++		return nil, nil, false, fmt.Errorf("invalid destination %q: %v", destination, err)
++	}
++	if ip.To4() == nil {
++		return nil, nil, false, fmt.Errorf("FreeBSD route backend currently supports IPv4 only, got %s", destination)
++	}
++	ones, bits := ipNet.Mask.Size()
++	if bits != 32 {
++		return nil, nil, false, fmt.Errorf("invalid IPv4 route %q", destination)
++	}
++	return ip, ipNet, ones == 32, nil
++}
++
++func validateFreeBSDRouteLookupTarget(destination string) error {
++	if destination == "default" {
++		return nil
++	}
++	if _, _, _, err := parseFreeBSDRouteDestination(destination); err != nil {
++		return err
++	}
++	return nil
++}
++
++func firstNonEmpty(values ...string) string {
++	for _, v := range values {
++		if v != "" {
++			return v
++		}
++	}
++	return ""
++}
+diff --git a/upstream/_upstream/newt/websocket/config.go b/vendor/third_party/newt/websocket/config.go
+index 3bff8d6..893a50e 100644
+--- a/upstream/_upstream/newt/websocket/config.go
++++ b/vendor/third_party/newt/websocket/config.go
+@@ -117,7 +117,7 @@ func (c *Client) saveConfig() error {
+ 	}
+ 
+ 	logger.Info("Saving config to: %s", configPath)
+-	err = os.WriteFile(configPath, data, 0644)
++	err = os.WriteFile(configPath, data, 0600)
+ 	if err == nil {
+ 		c.configNeedsSave = false // Reset flag after successful save
+ 	}

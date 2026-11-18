@@ -1,0 +1,46 @@
+<form>
+    <field>
+        <type>header</type>
+        <label>Unbound DNS Synchronisation</label>
+    </field>
+    <field>
+        <id>pangolin.dns.enabled</id>
+        <label>Enable DNS synchronisation</label>
+        <type>checkbox</type>
+        <help>Publishes private Pangolin resource aliases reported by the machine client into an os-pangolin-owned Unbound include file. Public domains are never rewritten and manually managed Unbound entries are never modified or deleted.</help>
+    </field>
+    <field>
+        <id>pangolin.dns.syncInterval</id>
+        <label>Reconciliation interval</label>
+        <type>dropdown</type>
+        <help>State changes trigger an immediate sync through the agent hook. This interval is a periodic safety net (for example after a crash or a missed event).</help>
+    </field>
+    <field>
+        <id>pangolin.dns.ttl</id>
+        <label>Record TTL</label>
+        <type>text</type>
+        <help>TTL in seconds for generated local-data records.</help>
+    </field>
+    <field>
+        <id>pangolin.dns.conditionalForwarding</id>
+        <label>Enable conditional forwarding</label>
+        <type>checkbox</type>
+        <help>Optionally forward the listed private DNS suffixes to the machine client's internal DNS proxy. This is only needed when the deployment uses a private Pangolin resolver zone; static alias records work without it.</help>
+    </field>
+    <field>
+        <id>pangolin.dns.forwardDomains</id>
+        <label>Conditional-forward domains</label>
+        <type>text</type>
+        <hint>internal.example.com, corp.example.net</hint>
+        <help>Comma-separated private DNS suffixes, without wildcards. Queries for these suffixes are forwarded to the tunnel DNS proxy; all other queries continue to use normal Unbound resolution.</help>
+    </field>
+    <field>
+        <type>header</type>
+        <label>Generated configuration</label>
+    </field>
+    <field>
+        <type>info</type>
+        <label>Managed file</label>
+        <help>The plugin writes /usr/local/etc/unbound.opnsense.d/os-pangolin.conf only. OPNsense copies this include into the Unbound chroot on restart. Remove the plugin or disable DNS sync to remove the file; manual host/domain overrides are checked for conflicts and take precedence.</help>
+    </field>
+</form>

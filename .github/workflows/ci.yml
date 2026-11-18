@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+
+      - name: Go unit tests
+        working-directory: agent
+        run: |
+          go test ./...
+          go vet ./...
+
+      - name: FreeBSD cross-builds
+        working-directory: agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          GOOS=freebsd GOARCH=amd64 go build ./...
+          GOOS=freebsd GOARCH=arm64 go build ./...
+
+      - name: PHP syntax
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+          python3 scripts/check-php.py "$(command -v php)"
+
+      - name: XML parse
+        run: python3 scripts/check-xml.py
+
+      - name: Shell syntax
+        run: |
+          for f in scripts/*.sh tests/integration/qemu/*.sh plugin/+POST_INSTALL plugin/+POST_DEINSTALL plugin/src/etc/rc.d/* plugin/src/etc/pangolin/hook.sh; do
+            sh -n "$f"
+          done

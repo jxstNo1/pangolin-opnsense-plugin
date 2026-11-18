@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# PROVIDE: pangolin_site
+# REQUIRE: NETWORKING
+# BEFORE: LOGIN
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="pangolin_site"
+rcvar="${name}_enable"
+: ${pangolin_site_enable:="YES"}
+: ${pangolin_site_config:="/usr/local/etc/pangolin/site.json"}
+: ${pangolin_site_logfile:="/var/log/pangolin/site.log"}
+
+pidfile="/var/run/pangolin_site.pid"
+command="/usr/sbin/daemon"
+procname="/usr/sbin/daemon"
+start_precmd="pangolin_site_precmd"
+stop_postcmd="pangolin_site_poststop"
+
+command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_site_logfile} ${procname} run --config ${pangolin_site_config}"
+
+pangolin_site_precmd()
+{
+    mkdir -p /var/log/pangolin
+    if [ ! -r "${pangolin_site_config}" ]; then
+        echo "missing ${pangolin_site_config}" >&2
+        return 1
+    fi
+    if [ ! -x "${procname}" ]; then
+        echo "missing ${procname}" >&2
+        return 1
+    fi
+    return 0
+}
+
+pangolin_site_poststop()
+{
+    rm -f /var/db/pangolin/site.health
+}
+
+load_rc_config $name
+run_rc_command "$1"

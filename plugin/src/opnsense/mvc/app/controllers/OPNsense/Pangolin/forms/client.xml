@@ -1,0 +1,100 @@
+<form>
+    <field>
+        <type>header</type>
+        <label>Pangolin Machine Client</label>
+    </field>
+    <field>
+        <id>pangolin.client.enabled</id>
+        <label>Enable machine client</label>
+        <type>checkbox</type>
+        <help>Runs the native Pangolin machine client (olm) on this firewall. It establishes a WireGuard tunnel for this device and, optionally, for selected local networks.</help>
+    </field>
+    <field>
+        <id>pangolin.client.endpoint</id>
+        <label>Pangolin endpoint</label>
+        <type>text</type>
+        <hint>https://pangolin.example.com</hint>
+        <help>Base URL of your Pangolin instance. HTTPS is required unless the advanced insecure-HTTP override is enabled.</help>
+    </field>
+    <field>
+        <id>pangolin.client.id</id>
+        <label>Client ID</label>
+        <type>text</type>
+        <help>Machine client ID created in the Pangolin dashboard.</help>
+    </field>
+    <field>
+        <id>pangolin.client.secret</id>
+        <label>Client secret</label>
+        <type>password</type>
+        <help>The secret is stored in config.xml (root-readable) and written to a 0600 agent configuration file. It is never written to logs or status files.</help>
+    </field>
+    <field>
+        <id>pangolin.client.orgId</id>
+        <label>Organization ID</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Optional organization identifier for multi-organization deployments.</help>
+    </field>
+    <field>
+        <type>header</type>
+        <label>Tunnel</label>
+    </field>
+    <field>
+        <id>pangolin.client.interfaceName</id>
+        <label>Interface name</label>
+        <type>text</type>
+        <help>FreeBSD tun(4) interface created by the agent. Keep the default unless it conflicts with an existing interface.</help>
+    </field>
+    <field>
+        <id>pangolin.client.mtu</id>
+        <label>MTU</label>
+        <type>text</type>
+        <help>WireGuard MTU. 1280 is safe over most paths; 1420 is common on clean Ethernet/WAN links.</help>
+    </field>
+    <field>
+        <id>pangolin.client.dns</id>
+        <label>Netstack resolver</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Resolver used by the client's internal netstack for endpoint name resolution. Unbound remains the LAN resolver.</help>
+    </field>
+    <field>
+        <id>pangolin.client.upstreamDns</id>
+        <label>Internal DNS proxy upstreams</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Comma-separated address or address:port resolvers used by the client's internal DNS proxy. These are not used as LAN resolvers.</help>
+    </field>
+    <field>
+        <id>pangolin.client.pingInterval</id>
+        <label>Ping interval</label>
+        <type>text</type>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>pangolin.client.pingTimeout</id>
+        <label>Ping timeout</label>
+        <type>text</type>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>pangolin.client.holepunch</id>
+        <label>Enable hole punching</label>
+        <type>checkbox</type>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>pangolin.client.preferLocalRoutes</id>
+        <label>Prefer local routes</label>
+        <type>checkbox</type>
+        <advanced>true</advanced>
+        <help>Keep overlapping directly connected/local routes preferred over tunnel routes.</help>
+    </field>
+    <field>
+        <id>pangolin.client.disableRoutesAndAliasesOnExitNode</id>
+        <label>Exit node takes precedence</label>
+        <type>checkbox</type>
+        <advanced>true</advanced>
+        <help>When an exit node is active, suppress per-resource routes and aliases so all traffic follows the exit node.</help>
+    </field>
+</form>

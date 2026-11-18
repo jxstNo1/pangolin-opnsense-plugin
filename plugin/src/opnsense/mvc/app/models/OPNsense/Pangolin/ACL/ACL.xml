@@ -1,0 +1,9 @@
+<acl>
+    <page-vpn-pangolin>
+        <name>VPN: Pangolin</name>
+        <patterns>
+            <pattern>ui/pangolin/*</pattern>
+            <pattern>api/pangolin/*</pattern>
+        </patterns>
+    </page-vpn-pangolin>
+</acl>

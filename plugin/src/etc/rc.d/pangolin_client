@@ -1,0 +1,46 @@
+#!/bin/sh
+
+# PROVIDE: pangolin_client
+# REQUIRE: NETWORKING
+# BEFORE: LOGIN
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="pangolin_client"
+rcvar="${name}_enable"
+: ${pangolin_client_enable:="YES"}
+: ${pangolin_client_config:="/usr/local/etc/pangolin/client.json"}
+: ${pangolin_client_logfile:="/var/log/pangolin/client.log"}
+
+pidfile="/var/run/pangolin_client.pid"
+command="/usr/sbin/daemon"
+procname="/usr/sbin/daemon"
+start_precmd="pangolin_client_precmd"
+stop_postcmd="pangolin_client_poststop"
+
+command_args="-R 10 -C 128 -P ${pidfile} -o ${pangolin_client_logfile} ${procname} run --config ${pangolin_client_config}"
+
+pangolin_client_precmd()
+{
+    mkdir -p /var/log/pangolin
+    if [ ! -r "${pangolin_client_config}" ]; then
+        echo "missing ${pangolin_client_config}" >&2
+        return 1
+    fi
+    if [ ! -x "${procname}" ]; then
+        echo "missing ${procname}" >&2
+        return 1
+    fi
+    return 0
+}
+
+pangolin_client_poststop()
+{
+    # The agent removes its own routes and, for the standalone backend, its
+    # pf anchors. The plugin reconciles OPNsense anchors from the state file.
+    rm -f /var/db/pangolin/client.health
+}
+
+load_rc_config $name
+run_rc_command "$1"

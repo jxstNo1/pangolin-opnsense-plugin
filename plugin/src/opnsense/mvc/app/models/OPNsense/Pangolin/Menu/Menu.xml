@@ -1,0 +1,13 @@
+<menu>
+    <VPN>
+        <Pangolin cssClass="fa fa-cloud fa-fw">
+            <Overview order="10" url="/ui/pangolin/overview"/>
+            <Clients order="20" url="/ui/pangolin/clients"/>
+            <Sites order="30" url="/ui/pangolin/sites"/>
+            <SubnetRouting order="40" VisibleName="Subnet Routing" url="/ui/pangolin/subnet"/>
+            <Dns order="50" VisibleName="DNS / Unbound" url="/ui/pangolin/dns"/>
+            <Settings order="60" url="/ui/pangolin/settings"/>
+            <Logs order="70" url="/ui/pangolin/logs"/>
+        </Pangolin>
+    </VPN>
+</menu>

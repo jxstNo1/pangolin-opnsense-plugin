@@ -1,0 +1,53 @@
+name: Run Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run Go tests
+        run: make test
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - local
+          - docker-build
+          - go-build-release-darwin-amd64
+          - go-build-release-darwin-arm64
+          - go-build-release-freebsd-amd64
+          - go-build-release-freebsd-arm64
+          - go-build-release-linux-amd64
+          - go-build-release-linux-arm32-v6
+          - go-build-release-linux-arm32-v7
+          - go-build-release-linux-riscv64
+          - go-build-release-windows-amd64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build targets via `make`
+        run: make ${{ matrix.target }}

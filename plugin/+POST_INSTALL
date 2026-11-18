@@ -1,0 +1,21 @@
+#!/bin/sh
+# os-pangolin post-install: create private directories and fix executable
+# modes. The package itself never writes secrets; configuration is generated
+# through configd after the operator saves the model.
+
+set -e
+
+for dir in /usr/local/etc/pangolin /var/db/pangolin /var/log/pangolin /var/etc/pangolin; do
+    mkdir -p "${dir}"
+done
+chmod 700 /usr/local/etc/pangolin
+chmod 755 /var/db/pangolin /var/log/pangolin /var/etc/pangolin
+
+chmod 755 /usr/local/etc/rc.d/pangolin_client /usr/local/etc/rc.d/pangolin_site
+chmod 700 /usr/local/etc/pangolin/hook.sh 2>/dev/null || true
+
+# Register the plugin model and actions with the running configd instance.
+/usr/local/sbin/configctl configd sync >/dev/null 2>&1 || true
+/usr/local/sbin/configctl filter reload >/dev/null 2>&1 || true
+
+exit 0

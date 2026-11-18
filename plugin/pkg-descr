@@ -1,0 +1,20 @@
+os-pangolin is a native FreeBSD/OPNsense integration for Pangolin.
+
+It provides:
+
+  - a Pangolin machine client with a native FreeBSD tun(4), ioctl(2) and
+    route(8) network backend;
+  - a Newt-compatible site connector (the upstream Pangolin CLI embeds Newt
+    with `pangolin up site`);
+  - a native subnet router that lets selected local VLANs reach remote
+    Pangolin resources through the firewall, without a client on the LAN
+    device and without Linux containers, VMs or compatibility layers;
+  - OPNsense-owned pf anchors with source-scoped NAT/filter rules, automatic
+    route lifecycle and fail-closed cleanup;
+  - an os-pangolin-owned Unbound include file for private resource aliases,
+    with conflict detection against manually managed entries;
+  - CARP active/passive gating for HA deployments.
+
+The agent is built from the official fosrl/newt and fosrl/olm sources with a
+small, documented FreeBSD port. See the project repository for the exact
+upstream commits, patch files and security model.

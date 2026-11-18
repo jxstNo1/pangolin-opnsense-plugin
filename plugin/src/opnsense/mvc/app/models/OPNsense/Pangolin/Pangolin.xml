@@ -1,0 +1,225 @@
+<model>
+    <mount>//OPNsense/pangolin</mount>
+    <description>Pangolin native integration</description>
+    <version>0.1.0</version>
+    <items>
+        <general>
+            <enabled type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </enabled>
+            <logLevel type="OptionField">
+                <Required>Y</Required>
+                <Default>info</Default>
+                <OptionValues>
+                    <debug>debug</debug>
+                    <info>info</info>
+                    <warn>warn</warn>
+                    <error>error</error>
+                </OptionValues>
+            </logLevel>
+        </general>
+        <client>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <endpoint type="UrlField">
+                <ValidationMessage>A valid Pangolin endpoint URL is required.</ValidationMessage>
+            </endpoint>
+            <id type="TextField">
+                <Mask>/^\S{1,512}$/</Mask>
+                <ValidationMessage>A Pangolin machine client ID is required.</ValidationMessage>
+            </id>
+            <secret type="TextField">
+                <ValidationMessage>A Pangolin machine client secret is required.</ValidationMessage>
+            </secret>
+            <orgId type="TextField">
+                <Mask>/^[A-Za-z0-9_\-]{0,128}$/</Mask>
+                <ValidationMessage>Organization ID contains invalid characters.</ValidationMessage>
+            </orgId>
+            <interfaceName type="TextField">
+                <Default>pangolin0</Default>
+                <Required>Y</Required>
+                <Mask>/^[A-Za-z0-9_]{1,15}$/</Mask>
+                <ValidationMessage>Interface names may contain 1-15 letters, digits or underscores.</ValidationMessage>
+            </interfaceName>
+            <mtu type="IntegerField">
+                <Default>1280</Default>
+                <Required>Y</Required>
+                <MinimumValue>576</MinimumValue>
+                <MaximumValue>9000</MaximumValue>
+            </mtu>
+            <dns type="TextField">
+                <Default>1.1.1.1</Default>
+                <Mask>/^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/</Mask>
+                <ValidationMessage>Enter an IPv4 resolver address.</ValidationMessage>
+            </dns>
+            <upstreamDns type="CSVListField">
+                <Default>1.1.1.1:53,8.8.8.8:53</Default>
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?::(?:[1-9]\d{0,4}))?$/</Mask>
+                <ValidationMessage>Enter IPv4 resolvers as address or address:port, comma-separated.</ValidationMessage>
+            </upstreamDns>
+            <pingInterval type="TextField">
+                <Default>5s</Default>
+                <Mask>/^\d{1,4}(s|m|h)$/</Mask>
+                <ValidationMessage>Use a duration such as 5s or 1m.</ValidationMessage>
+            </pingInterval>
+            <pingTimeout type="TextField">
+                <Default>5s</Default>
+                <Mask>/^\d{1,4}(s|m|h)$/</Mask>
+                <ValidationMessage>Use a duration such as 5s or 1m.</ValidationMessage>
+            </pingTimeout>
+            <holepunch type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </holepunch>
+            <preferLocalRoutes type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </preferLocalRoutes>
+            <disableRoutesAndAliasesOnExitNode type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </disableRoutesAndAliasesOnExitNode>
+        </client>
+        <site>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <endpoint type="UrlField">
+                <ValidationMessage>A valid Pangolin endpoint URL is required.</ValidationMessage>
+            </endpoint>
+            <id type="TextField">
+                <Mask>/^\S{1,512}$/</Mask>
+                <ValidationMessage>A Pangolin site ID is required.</ValidationMessage>
+            </id>
+            <secret type="TextField">
+                <ValidationMessage>A Pangolin site secret is required.</ValidationMessage>
+            </secret>
+            <name type="TextField">
+                <Mask>/^[A-Za-z0-9_.\- ]{0,128}$/</Mask>
+                <ValidationMessage>Site name contains invalid characters.</ValidationMessage>
+            </name>
+            <interfaceName type="TextField">
+                <Default>newt0</Default>
+                <Required>Y</Required>
+                <Mask>/^[A-Za-z0-9_]{1,15}$/</Mask>
+                <ValidationMessage>Interface names may contain 1-15 letters, digits or underscores.</ValidationMessage>
+            </interfaceName>
+            <mtu type="IntegerField">
+                <Default>1420</Default>
+                <Required>Y</Required>
+                <MinimumValue>576</MinimumValue>
+                <MaximumValue>9000</MaximumValue>
+            </mtu>
+            <useNativeMainInterface type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </useNativeMainInterface>
+            <disableSsh type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </disableSsh>
+            <disableClients type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </disableClients>
+            <pingInterval type="TextField">
+                <Default>15s</Default>
+                <Mask>/^\d{1,4}(s|m|h)$/</Mask>
+                <ValidationMessage>Use a duration such as 15s or 1m.</ValidationMessage>
+            </pingInterval>
+            <pingTimeout type="TextField">
+                <Default>7s</Default>
+                <Mask>/^\d{1,4}(s|m|h)$/</Mask>
+                <ValidationMessage>Use a duration such as 7s or 1m.</ValidationMessage>
+            </pingTimeout>
+        </site>
+        <subnetRouter>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <backend type="OptionField">
+                <Required>Y</Required>
+                <Default>opnsense</Default>
+                <OptionValues>
+                    <opnsense>OPNsense firewall integration (recommended)</opnsense>
+                    <none>Routes only (no NAT/firewall)</none>
+                </OptionValues>
+            </backend>
+            <localNetworks type="CSVListField">
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/(?:[89]|[12][0-9]|3[0-2])$/</Mask>
+                <ValidationMessage>Use IPv4 CIDRs with a prefix between /8 and /32, comma-separated.</ValidationMessage>
+            </localNetworks>
+            <nat type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </nat>
+            <firewall type="BooleanField">
+                <Default>1</Default>
+                <Required>Y</Required>
+            </firewall>
+        </subnetRouter>
+        <dns>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <syncInterval type="OptionField">
+                <Required>Y</Required>
+                <Default>m5</Default>
+                <OptionValues>
+                    <m1>Every minute</m1>
+                    <m5>Every 5 minutes</m5>
+                    <m15>Every 15 minutes</m15>
+                    <m30>Every 30 minutes</m30>
+                    <m60>Every hour</m60>
+                </OptionValues>
+            </syncInterval>
+            <ttl type="IntegerField">
+                <Default>60</Default>
+                <Required>Y</Required>
+                <MinimumValue>0</MinimumValue>
+                <MaximumValue>86400</MaximumValue>
+            </ttl>
+            <conditionalForwarding type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </conditionalForwarding>
+            <forwardDomains type="CSVListField">
+                <MaskPerItem>Y</MaskPerItem>
+                <Mask>/^(?=.{1,253}$)(?:[A-Za-z0-9_](?:[A-Za-z0-9_\-]{0,61}[A-Za-z0-9_])?\.)+[A-Za-z0-9_](?:[A-Za-z0-9_\-]{0,61}[A-Za-z0-9_])?$/</Mask>
+                <ValidationMessage>Enter private DNS suffixes without wildcards, comma-separated.</ValidationMessage>
+            </forwardDomains>
+        </dns>
+        <ha>
+            <enabled type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </enabled>
+            <interface type="TextField">
+                <Mask>/^[A-Za-z0-9_]{0,15}$/</Mask>
+                <ValidationMessage>Enter the CARP interface name (for example em0 or wan).</ValidationMessage>
+            </interface>
+            <requiredState type="OptionField">
+                <Required>Y</Required>
+                <Default>MASTER</Default>
+                <OptionValues>
+                    <MASTER>MASTER (active)</MASTER>
+                    <BACKUP>BACKUP (standby)</BACKUP>
+                </OptionValues>
+            </requiredState>
+        </ha>
+        <advanced>
+            <allowInsecureHttp type="BooleanField">
+                <Default>0</Default>
+                <Required>Y</Required>
+            </allowInsecureHttp>
+        </advanced>
+    </items>
+</model>

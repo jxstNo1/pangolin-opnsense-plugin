@@ -1,0 +1,82 @@
+<form>
+    <field>
+        <type>header</type>
+        <label>Pangolin Site Connector (Newt)</label>
+    </field>
+    <field>
+        <id>pangolin.site.enabled</id>
+        <label>Enable site connector</label>
+        <type>checkbox</type>
+        <help>Connects this OPNsense firewall as a Pangolin site. Local resources are exposed through Pangolin's resource/proxy model. The site connector is independent of the machine client.</help>
+    </field>
+    <field>
+        <id>pangolin.site.endpoint</id>
+        <label>Pangolin endpoint</label>
+        <type>text</type>
+        <hint>https://pangolin.example.com</hint>
+    </field>
+    <field>
+        <id>pangolin.site.id</id>
+        <label>Site ID</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>pangolin.site.secret</id>
+        <label>Site secret</label>
+        <type>password</type>
+        <help>Stored in config.xml (root-readable) and written to a 0600 agent configuration file.</help>
+    </field>
+    <field>
+        <id>pangolin.site.name</id>
+        <label>Site name</label>
+        <type>text</type>
+        <advanced>true</advanced>
+        <help>Optional display name sent to Pangolin.</help>
+    </field>
+    <field>
+        <type>header</type>
+        <label>Transport</label>
+    </field>
+    <field>
+        <id>pangolin.site.interfaceName</id>
+        <label>Interface name</label>
+        <type>text</type>
+        <help>Only used when native main-interface mode is enabled. The default user-space netstack mode needs no TUN device.</help>
+    </field>
+    <field>
+        <id>pangolin.site.mtu</id>
+        <label>MTU</label>
+        <type>text</type>
+    </field>
+    <field>
+        <id>pangolin.site.useNativeMainInterface</id>
+        <label>Use native TUN interface</label>
+        <type>checkbox</type>
+        <advanced>true</advanced>
+        <help>Runs the site tunnel through a FreeBSD tun(4) interface instead of the user-space netstack. Requires root (the service already runs as root) and is intended for advanced deployments.</help>
+    </field>
+    <field>
+        <id>pangolin.site.disableSsh</id>
+        <label>Disable Newt SSH/auth daemon</label>
+        <type>checkbox</type>
+        <help>Recommended: the site connector on a firewall does not need Newt's SSH auth daemon.</help>
+    </field>
+    <field>
+        <id>pangolin.site.disableClients</id>
+        <label>Disable downstream WireGuard clients</label>
+        <type>checkbox</type>
+        <help>Recommended: the firewall is a site connector, not a downstream client hub.</help>
+    </field>
+    <field>
+        <id>pangolin.site.pingInterval</id>
+        <label>Ping interval</label>
+        <type>text</type>
+        <advanced>true</advanced>
+    </field>
+    <field>
+        <id>pangolin.site.pingTimeout</id>
+        <label>Ping timeout</label>
+        <type>text</type>
+        <advanced>true</advanced>
+    </field>
+</form>

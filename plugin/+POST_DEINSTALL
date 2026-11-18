@@ -1,0 +1,17 @@
+#!/bin/sh
+# os-pangolin post-deinstall: remove only plugin-generated state. Manually
+# managed pf/Unbound configuration is never touched.
+
+/usr/local/etc/rc.d/pangolin_client stop >/dev/null 2>&1 || true
+/usr/local/etc/rc.d/pangolin_site stop >/dev/null 2>&1 || true
+
+/sbin/pfctl -a os-pangolin/fw -F rules >/dev/null 2>&1 || true
+/sbin/pfctl -a os-pangolin/nat -F nat >/dev/null 2>&1 || true
+
+rm -f /usr/local/etc/unbound.opnsense.d/os-pangolin.conf
+rm -f /usr/local/etc/pangolin/client.json /usr/local/etc/pangolin/site.json
+rm -f /var/db/pangolin/client-status.json /var/db/pangolin/site-status.json
+rm -f /var/db/pangolin/dns-records.json /var/db/pangolin/unbound-dots.json
+rm -rf /var/db/pangolin/pf
+
+exit 0

@@ -1,0 +1,46 @@
+<form>
+    <field>
+        <type>header</type>
+        <label>Native Subnet Router</label>
+    </field>
+    <field>
+        <id>pangolin.subnetRouter.enabled</id>
+        <label>Enable subnet routing</label>
+        <type>checkbox</type>
+        <help>Lets devices in the selected local networks reach remote Pangolin resources through this firewall without installing a Pangolin client. Requires the machine client.</help>
+    </field>
+    <field>
+        <id>pangolin.subnetRouter.backend</id>
+        <label>Firewall backend</label>
+        <type>dropdown</type>
+        <help>OPNsense integration registers the os-pangolin anchors through the official firewall plugin API. The standalone pf backend is for plain FreeBSD installations only.</help>
+    </field>
+    <field>
+        <id>pangolin.subnetRouter.localNetworks</id>
+        <label>Allowed local networks</label>
+        <type>text</type>
+        <hint>10.10.0.0/16, 10.20.0.0/24</hint>
+        <help>Comma-separated IPv4 CIDRs. Only these sources are NATed and allowed through the tunnel. The default route and prefixes broader than /8 are rejected. Other VLANs remain isolated and are never opened implicitly.</help>
+    </field>
+    <field>
+        <id>pangolin.subnetRouter.nat</id>
+        <label>Source-NAT to tunnel address</label>
+        <type>checkbox</type>
+        <help>Pangolin authorizes traffic by the machine client's tunnel identity, so forwarded LAN traffic must be translated to the tunnel address.</help>
+    </field>
+    <field>
+        <id>pangolin.subnetRouter.firewall</id>
+        <label>Install forward filter rules</label>
+        <type>checkbox</type>
+        <help>Adds pass rules scoped to the selected sources and the remote routes reported by the agent. Remote-initiated traffic and inter-VLAN traffic are not opened.</help>
+    </field>
+    <field>
+        <type>header</type>
+        <label>Safety invariants</label>
+    </field>
+    <field>
+        <type>info</type>
+        <label>Guarantees</label>
+        <help>The plugin never adds a default route, never flushes the global pf ruleset, never touches manually managed Unbound entries, and flushes only its own anchors when the tunnel is down. Remote routes are learned from the client and filtered for IPv4 unicast. IPv6 is not routed through this feature.</help>
+    </field>
+</form>
